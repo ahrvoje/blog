@@ -1,0 +1,13 @@
+{
+  "name": "Enjoying the details",
+  "short_name": "Details",
+  "start_url": "./",
+  "scope": "./",
+  "display": "browser",
+  "background_color": "#fcfbf8",
+  "theme_color": "#fcfbf8",
+  "icons": [
+    { "src": "android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "android-chrome-384x384.png", "sizes": "384x384", "type": "image/png" }
+  ]
+}

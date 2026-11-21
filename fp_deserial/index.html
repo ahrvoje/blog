@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floating Point deserialization · Enjoying the details</title>
+<meta name="description" content="A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. This post shows the 2016 re…">
+<meta name="author" content="Hrvoje Abraham">
+<link rel="preload" href="../assets/fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/katex/katex.min.css">
+<link rel="icon" href="../favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+<link rel="manifest" href="../site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Enjoying the details">
+<meta name="application-name" content="Enjoying the details">
+<meta name="msapplication-config" content="../browserconfig.xml">
+<meta name="msapplication-TileColor" content="#fcfbf8">
+<meta name="theme-color" content="#fcfbf8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171614" media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<header class="site"><a href="../"><img src="../favicon-32x32.png" alt="" width="16" height="16">Enjoying the details</a></header>
+<main class="post">
+<h1>Floating Point deserialization</h1>
+<p class="meta"><time datetime="2026-11-21">21 November 2026</time> · Hrvoje Abraham</p>
+<p>A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. This post shows the 2016 results and the same test repeated in 2026.</p>
+<p>Only one short native route is correct on all test strings: the C function <code>strtod</code> of the Windows C runtime, loaded into the kernel, with a check that it read the whole string. Of the other 25 routes in this post, 22 fail on the first input below. The second input is not a number, and the route rejects it.</p>
+<pre><code>c = &quot;RawPointer&quot;::[&quot;UnsignedInteger8&quot;]; end = RawMemoryAllocate[c];
+strtod = ForeignFunctionLoad[&quot;C:\\Windows\\System32\\ucrtbase.dll&quot;,
+  &quot;strtod&quot;, {c, &quot;RawPointer&quot;::[c]} -&gt; &quot;CDouble&quot;];
+read[s_] := Module[{p = RawMemoryExport[s], x}, x = strtod[p, end];
+  If[s != &quot;&quot; &amp;&amp; RawMemoryRead@RawMemoryRead@end == 0, x, $Failed]]
+read /@ {&quot;2.4703282292062328e-324&quot;, &quot;1.0e&quot;}   (* {5.*^-324, $Failed} *)
+</code></pre>
+<h2 id="the-test">The test</h2>
+<p>Twenty strings from the hard regions: underflow, subnormal numbers, halfway cases and overflow. A method passes a test when its result, taken exactly, is equal to the correct double. Where infinity is correct, each form of infinity passes. Two forms occurred: the symbol <code>Infinity</code>, and the IEEE infinity as a machine number, which Wolfram prints as <code>Inf</code>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:right">ID</th>
+<th style="text-align:left">Input string</th>
+<th style="text-align:left">Correct double</th>
+<th style="text-align:left">Exact value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">1</td>
+<td style="text-align:left"><code>1e-400</code></td>
+<td style="text-align:left"><code>0x0000000000000000</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">2</td>
+<td style="text-align:left"><code>2.4703282292062326e-324</code></td>
+<td style="text-align:left"><code>0x0000000000000000</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">3</td>
+<td style="text-align:left"><code>2.4703282292062327e-324</code></td>
+<td style="text-align:left"><code>0x0000000000000000</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn></mrow><annotation encoding="application/x-tex">0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">4</td>
+<td style="text-align:left"><code>2.4703282292062328e-324</code></td>
+<td style="text-align:left"><code>0x0000000000000001</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mn>2</mn><mrow><mo>−</mo><mn>1074</mn></mrow></msup></mrow><annotation encoding="application/x-tex">2^{-1074}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">1074</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">5</td>
+<td style="text-align:left"><code>4.9406564584124654e-324</code></td>
+<td style="text-align:left"><code>0x0000000000000001</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mn>2</mn><mrow><mo>−</mo><mn>1074</mn></mrow></msup></mrow><annotation encoding="application/x-tex">2^{-1074}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">1074</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">6</td>
+<td style="text-align:left"><code>1e-320</code></td>
+<td style="text-align:left"><code>0x00000000000007e8</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2024</mn><mo>⋅</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>1074</mn></mrow></msup></mrow><annotation encoding="application/x-tex">2024 \cdot 2^{-1074}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">2024</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">1074</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">7</td>
+<td style="text-align:left"><code>2.2250738585072009e-308</code></td>
+<td style="text-align:left"><code>0x000fffffffffffff</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>4503599627370495</mn><mo>⋅</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>1074</mn></mrow></msup></mrow><annotation encoding="application/x-tex">4503599627370495 \cdot 2^{-1074}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">4503599627370495</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">1074</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">8</td>
+<td style="text-align:left"><code>2.2250738585072014e-308</code></td>
+<td style="text-align:left"><code>0x0010000000000000</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>4503599627370496</mn><mo>⋅</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>1074</mn></mrow></msup></mrow><annotation encoding="application/x-tex">4503599627370496 \cdot 2^{-1074}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">4503599627370496</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">1074</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">9</td>
+<td style="text-align:left"><code>1.e-25</code></td>
+<td style="text-align:left"><code>0x3abef2d0f5da7dd9</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>8711228593176025</mn><mo>⋅</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>136</mn></mrow></msup></mrow><annotation encoding="application/x-tex">8711228593176025 \cdot 2^{-136}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">8711228593176025</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">136</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">10</td>
+<td style="text-align:left"><code>1.0e-23</code></td>
+<td style="text-align:left"><code>0x3b282db34012b251</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>6805647338418769</mn><mo>⋅</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>129</mn></mrow></msup></mrow><annotation encoding="application/x-tex">6805647338418769 \cdot 2^{-129}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">6805647338418769</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">129</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">11</td>
+<td style="text-align:left"><code>1.2345678901234567890</code></td>
+<td style="text-align:left"><code>0x3ff3c0ca428c59fb</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>5559999489923579</mn><mo>⋅</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>52</mn></mrow></msup></mrow><annotation encoding="application/x-tex">5559999489923579 \cdot 2^{-52}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">5559999489923579</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">52</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">12</td>
+<td style="text-align:left"><code>1.13e1</code></td>
+<td style="text-align:left"><code>0x402699999999999a</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>6361334473660826</mn><mo>⋅</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>49</mn></mrow></msup></mrow><annotation encoding="application/x-tex">6361334473660826 \cdot 2^{-49}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">6361334473660826</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">49</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">13</td>
+<td style="text-align:left"><code>1e+19</code></td>
+<td style="text-align:left"><code>0x43e158e460913d00</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>4882812500000000</mn><mo>⋅</mo><msup><mn>2</mn><mn>11</mn></msup></mrow><annotation encoding="application/x-tex">4882812500000000 \cdot 2^{11}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">4882812500000000</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">11</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">14</td>
+<td style="text-align:left"><code>1.9e+22</code></td>
+<td style="text-align:left"><code>0x449017f7df96be18</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>4529953002929688</mn><mo>⋅</mo><msup><mn>2</mn><mn>22</mn></msup></mrow><annotation encoding="application/x-tex">4529953002929688 \cdot 2^{22}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">4529953002929688</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">22</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">15</td>
+<td style="text-align:left"><code>2.7e22</code></td>
+<td style="text-align:left"><code>0x4496deb1154f79ec</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>6437301635742188</mn><mo>⋅</mo><msup><mn>2</mn><mn>22</mn></msup></mrow><annotation encoding="application/x-tex">6437301635742188 \cdot 2^{22}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">6437301635742188</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">22</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">16</td>
+<td style="text-align:left"><code>3.1e22</code></td>
+<td style="text-align:left"><code>0x449a420db02bd7d6</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>7390975952148438</mn><mo>⋅</mo><msup><mn>2</mn><mn>22</mn></msup></mrow><annotation encoding="application/x-tex">7390975952148438 \cdot 2^{22}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">7390975952148438</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">22</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">17</td>
+<td style="text-align:left"><code>7e22</code></td>
+<td style="text-align:left"><code>0x44ada56a4b0835c0</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>8344650268554688</mn><mo>⋅</mo><msup><mn>2</mn><mn>23</mn></msup></mrow><annotation encoding="application/x-tex">8344650268554688 \cdot 2^{23}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">8344650268554688</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">23</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">18</td>
+<td style="text-align:left"><code>1.7976931348623158e+308</code></td>
+<td style="text-align:left"><code>0x7fefffffffffffff</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>9007199254740991</mn><mo>⋅</mo><msup><mn>2</mn><mn>971</mn></msup></mrow><annotation encoding="application/x-tex">9007199254740991 \cdot 2^{971}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6444em;"></span><span class="mord">9007199254740991</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8141em;"></span><span class="mord"><span class="mord">2</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">971</span></span></span></span></span></span></span></span></span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">19</td>
+<td style="text-align:left"><code>1.7976931348623159e+308</code></td>
+<td style="text-align:left"><code>0x7ff0000000000000</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">∞</mi></mrow><annotation encoding="application/x-tex">\infty</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord">∞</span></span></span></span></td>
+</tr>
+<tr>
+<td style="text-align:right">20</td>
+<td style="text-align:left"><code>1e+400</code></td>
+<td style="text-align:left"><code>0x7ff0000000000000</code></td>
+<td style="text-align:left"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">∞</mi></mrow><annotation encoding="application/x-tex">\infty</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.4306em;"></span><span class="mord">∞</span></span></span></span></td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-methods">The methods</h2>
+<p>Eleven ways to read the string <code>s</code>, as written in 2016. Fifteen more follow in the 2026 section. Method E is <code>System.Double.Parse</code> of .NET, called through NETLink. Method D has a 2016 form and a 2026 form, because <code>Internal`StringToDouble</code> does not exist in Wolfram 15.</p>
+<pre><code>A   N@ToExpression@StringReplace[s, &quot;e&quot; | &quot;E&quot; -&gt; &quot;*10^&quot;]
+B   N@ToExpression@StringReplace[s, &quot;e&quot; | &quot;E&quot; -&gt; &quot;*^&quot;]
+C   (N@# &amp;)[Read[#, Number], Close@#] &amp;@StringToStream@s
+D   Internal`StringToDouble@s        (2016)
+    Internal`StringToMReal@s         (2026)
+E   Double`Parse@s
+F   N@ImportString[s, &quot;JSON&quot;]
+G   N@Interpreter[&quot;Number&quot;][s]
+H   N@First@ImportString[s, &quot;List&quot;]
+I   N@ImportString[s, &quot;CSV&quot;][[1, 1]]
+J   N@ImportString[s, &quot;Table&quot;][[1, 1]]
+K   First@ImportString[ExportString[N@First@ImportString[s, &quot;List&quot;], &quot;Real64&quot;], &quot;Real64&quot;]
+</code></pre>
+<h2 id="2016">2016</h2>
+<p><em>Mathematica 10.4 on Windows, 24 April 2016.</em></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Method</th>
+<th style="text-align:left">Failed tests</th>
+<th style="text-align:right">Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">A</td>
+<td style="text-align:left">1, 2, 3, 4, 5, 6, 9, 10, 12, 14, 19, 20</td>
+<td style="text-align:right">12</td>
+</tr>
+<tr>
+<td style="text-align:left">B</td>
+<td style="text-align:left">1, 2, 3, 4, 6, 19, 20</td>
+<td style="text-align:right">7</td>
+</tr>
+<tr>
+<td style="text-align:left">C</td>
+<td style="text-align:left">1, 2, 3, 4, 5, 6, 19, 20</td>
+<td style="text-align:right">8</td>
+</tr>
+<tr>
+<td style="text-align:left">D</td>
+<td style="text-align:left">1, 2, 3, 4, 5, 6, 7, 11, 19, 20</td>
+<td style="text-align:right">10</td>
+</tr>
+<tr>
+<td style="text-align:left">E</td>
+<td style="text-align:left">2, 3, 19, 20</td>
+<td style="text-align:right">4</td>
+</tr>
+<tr>
+<td style="text-align:left">F</td>
+<td style="text-align:left">4, 9, 14, 15, 16, 17, 19, 20</td>
+<td style="text-align:right">8</td>
+</tr>
+<tr>
+<td style="text-align:left">G</td>
+<td style="text-align:left">1, 2, 3, 4, 6, 9, 10, 12, 14, 19, 20</td>
+<td style="text-align:right">11</td>
+</tr>
+<tr>
+<td style="text-align:left">H</td>
+<td style="text-align:left">1, 2, 3, 4, 6, 19, 20</td>
+<td style="text-align:right">7</td>
+</tr>
+<tr>
+<td style="text-align:left">I</td>
+<td style="text-align:left">1, 2, 3, 4, 6, 19, 20</td>
+<td style="text-align:right">7</td>
+</tr>
+<tr>
+<td style="text-align:left">J</td>
+<td style="text-align:left">1, 2, 3, 4, 6, 19, 20</td>
+<td style="text-align:right">7</td>
+</tr>
+<tr>
+<td style="text-align:left">K</td>
+<td style="text-align:left">4, 5, 7</td>
+<td style="text-align:right">3</td>
+</tr>
+</tbody>
+</table>
+<p>Every method fails. The plain text routes (B, H, I, J) fail only at the limits: underflow and overflow. Methods A and G also round ordinary values wrongly, such as <code>1.13e1</code>. The best one, the binary round trip K, still fails three subnormal tests.</p>
+<p>For this reason I wrote <a href="StringToDouble.wl">StringToDouble.wl</a> in 2016. It does the conversion in exact rational arithmetic: slow, but correct.</p>
+<h2 id="2026">2026</h2>
+<p><em>Wolfram 15.0.1 on Windows, 21 November 2026. NETLink loads .NET Framework 4.8.</em></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Method</th>
+<th style="text-align:left">Failed tests</th>
+<th style="text-align:right">Count, 2016 → 2026</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">A</td>
+<td style="text-align:left">4, 5, 9, 10, 12, 14, 19, 20</td>
+<td style="text-align:right">12 → 8</td>
+</tr>
+<tr>
+<td style="text-align:left">B</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">7 → 3</td>
+</tr>
+<tr>
+<td style="text-align:left">C</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">8 → 3</td>
+</tr>
+<tr>
+<td style="text-align:left">D</td>
+<td style="text-align:left">1, 2, 3, 4, 5, 6, 7, 11, 19, 20</td>
+<td style="text-align:right">10 → 10</td>
+</tr>
+<tr>
+<td style="text-align:left">E</td>
+<td style="text-align:left">2, 3, 19, 20</td>
+<td style="text-align:right">4 → 4</td>
+</tr>
+<tr>
+<td style="text-align:left">F</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">8 → 3</td>
+</tr>
+<tr>
+<td style="text-align:left">G</td>
+<td style="text-align:left">4, 5, 12, 14, 19, 20</td>
+<td style="text-align:right">11 → 6</td>
+</tr>
+<tr>
+<td style="text-align:left">H</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">7 → 3</td>
+</tr>
+<tr>
+<td style="text-align:left">I</td>
+<td style="text-align:left">19, 20</td>
+<td style="text-align:right">7 → 2</td>
+</tr>
+<tr>
+<td style="text-align:left">J</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">7 → 3</td>
+</tr>
+<tr>
+<td style="text-align:left">K</td>
+<td style="text-align:left">4, 5</td>
+<td style="text-align:right">3 → 2</td>
+</tr>
+</tbody>
+</table>
+<p>Underflow is repaired: tests 1, 2, 3 and 6 now pass in the text routes. Three failures stay. Test 4 gives zero where the smallest subnormal is correct. Tests 19 and 20 give an arbitrary-precision number, or <code>Missing</code> in method I, where infinity is correct. These failures are real, not an effect of the infinity form: the kernel does not overflow, it leaves the machine numbers and returns a finite number that no double can hold, such as <code>1.7976931348623159*^308</code>. Methods A and G still round <code>1.13e1</code> and <code>1.9e+22</code> wrongly.</p>
+<p>The new form of method D fails the same ten tests as the old form did in 2016. .NET Framework 4.8 fails the same four tests as in 2016.</p>
+<p>The rule compares values only. For tests 6, 7, 19 and 20, method K now returns the correct value, but not as a machine double.</p>
+<h3 id="routes-added-in-2026">Routes added in 2026</h3>
+<p>Fifteen more routes, L to Z, with three helpers. <code>mark</code> writes a precision mark into the string. <code>rational</code> builds the exact rational value of the string. <code>atof</code> loads the C function <code>atof</code> from a Windows system library. Method Z uses <code>read</code> from the introduction.</p>
+<pre><code>mark[s_, p_] := If[StringContainsQ[s, &quot;e&quot; | &quot;E&quot;], StringReplace[s, &quot;e&quot; | &quot;E&quot; -&gt; p &lt;&gt; &quot;*^&quot;], s &lt;&gt; p]
+rational[s_] := Module[{m, e, d},
+  {m, e} = StringSplit[If[StringFreeQ[s, &quot;e&quot; | &quot;E&quot;], s &lt;&gt; &quot;e0&quot;, s], &quot;e&quot; | &quot;E&quot;];
+  d = If[StringFreeQ[m, &quot;.&quot;], 0, StringLength[m] - First@First@StringPosition[m, &quot;.&quot;]];
+  ToExpression[StringDelete[m, &quot;.&quot;]]*10^(ToExpression[e] - d)]
+atof[lib_] := ForeignFunctionLoad[FileNameJoin[{Environment[&quot;SystemRoot&quot;], &quot;System32&quot;, lib}],
+  &quot;atof&quot;, {&quot;RawPointer&quot;::[&quot;UnsignedInteger8&quot;]} -&gt; &quot;CDouble&quot;]
+
+L   ToExpression@mark[s, &quot;`&quot;]
+M   N@ToExpression@mark[s, &quot;`2000&quot;]
+N   (N@# &amp;)[Read[#, Real], Close@#] &amp;@StringToStream@s
+O   N@First@ReadList[StringToStream@s, Real]
+P   N@ImportString[s, &quot;RawJSON&quot;]
+Q   N@ImportString[s, &quot;ExpressionJSON&quot;]
+R   N@Developer`ReadRawJSONString@s
+S   N@ImportString[s, &quot;TSV&quot;][[1, 1]]
+T   N@ImportString[s, &quot;YAML&quot;]
+U   N@Interpreter[&quot;Real&quot;][s]
+V   N@First@SemanticImportString[s, &quot;Number&quot;, &quot;List&quot;]
+W   N@rational@s
+X   N@N[rational@s, 40]
+Y   atof[&quot;msvcrt.dll&quot;]@RawMemoryExport@s
+Z   read@s
+</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Method</th>
+<th style="text-align:left">Failed tests</th>
+<th style="text-align:right">Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">L</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">M</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">N</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">O</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">P</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">Q</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">R</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">S</td>
+<td style="text-align:left">19, 20</td>
+<td style="text-align:right">2</td>
+</tr>
+<tr>
+<td style="text-align:left">T</td>
+<td style="text-align:left">1, 2, 3, 4, 5, 6, 7, 11, 19, 20</td>
+<td style="text-align:right">10</td>
+</tr>
+<tr>
+<td style="text-align:left">U</td>
+<td style="text-align:left">4, 5, 12, 14, 19, 20</td>
+<td style="text-align:right">6</td>
+</tr>
+<tr>
+<td style="text-align:left">V</td>
+<td style="text-align:left">4, 5, 12, 14, 19, 20</td>
+<td style="text-align:right">6</td>
+</tr>
+<tr>
+<td style="text-align:left">W</td>
+<td style="text-align:left">4, 8, 9, 10, 19, 20</td>
+<td style="text-align:right">6</td>
+</tr>
+<tr>
+<td style="text-align:left">X</td>
+<td style="text-align:left">4, 19, 20</td>
+<td style="text-align:right">3</td>
+</tr>
+<tr>
+<td style="text-align:left">Y</td>
+<td style="text-align:left">4, 14, 15, 16, 17</td>
+<td style="text-align:right">5</td>
+</tr>
+<tr>
+<td style="text-align:left">Z</td>
+<td style="text-align:left">none</td>
+<td style="text-align:right">0</td>
+</tr>
+</tbody>
+</table>
+<p>Eight of the new routes fail tests 4, 19 and 20, the same as B, C, F, H and J. This points to one number parser in the kernel. YAML import (T) fails the same tests as D. <code>Interpreter[&quot;Real&quot;]</code> and <code>SemanticImportString</code> (U, V) fail the same tests as G.</p>
+<p>Method W shows a second defect: <code>N</code> of an exact rational is not correctly rounded. <code>N[1/10^25]</code> gives <code>9.999999999999999e-26</code>. A step through 40 digits (X) repairs these cases, but not tests 4, 19 and 20.</p>
+<p>Method Z, the last one, passes all twenty tests. It is <code>strtod</code> of <code>ucrtbase.dll</code>, the Universal C Runtime of Windows, here version 10.0.26100. The old runtime <code>msvcrt.dll</code> (Y) fails five. Y and Z are the only routes that return the machine <code>Inf</code> for tests 19 and 20. Method K and current .NET return the symbol <code>Infinity</code>.</p>
+<h3 id="the-larger-collection">The larger collection</h3>
+<p>My test collection <a href="https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/strtod_tests.toml">strtod_tests.toml</a> holds 81 conversion tests, 35 formatting tests and 22 strings that a reader must reject. <code>StringToDouble.wl</code> passes all of them.</p>
+<p>Method Z reads the 81 conversion tests bit for bit and rejects all 22 bad strings. The whole-string check is necessary for that: by the C standard, <code>strtod</code> converts the longest valid start of a string, so <code>1.0e</code> alone gives 1. Two differences stay, both in NaN. Its payload is not the one of the collection, and <code>nan(type-0)</code> is rejected, because C does not permit a hyphen there. Outside the collection, <code>strtod</code> also accepts leading white space and hexadecimal numbers such as <code>0x1p3</code>.</p>
+<h3 id="current-net-and-the-exact-routine">Current .NET and the exact routine</h3>
+<p>Wolfram 15 can also load current .NET. <code>InstallNET[UseNETFramework -&gt; False]</code> starts NETLink on the lowest installed version from 6 up, here .NET 7.0. With the environment variable <code>DOTNET_ROLL_FORWARD=LatestMajor</code> it starts on the highest one, here .NET 9.0. .NET 10 is not installed for all programs on this computer, so I tested it through PowerShell 7.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Route</th>
+<th style="text-align:left">Failed tests</th>
+<th style="text-align:right">Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">E through NETLink on .NET 7.0 and on .NET 9.0</td>
+<td style="text-align:left">none</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>double.Parse</code> on .NET 10.0, in PowerShell 7</td>
+<td style="text-align:left">none</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>StringToDouble.wl</code>, version 3 of June 2016</td>
+<td style="text-align:left">none</td>
+<td style="text-align:right">0</td>
+</tr>
+</tbody>
+</table>
+<p>Current .NET reads all twenty strings correctly, also when Wolfram calls it.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>In ten years Wolfram repaired underflow, but no route through the kernel parser reads all twenty strings correctly. The best ones, CSV and TSV import, still fail at overflow: they give <code>Missing</code>, which is not a form of infinity. Correct results come from outside the kernel: the C runtime of Windows, current .NET, or an exact routine such as <code>StringToDouble.wl</code>.</p>
+<h2 id="data-and-code">Data and code</h2>
+<ul>
+<li><a href="tests.json">tests.json</a>: the twenty tests.</li>
+<li><a href="results2016.json">results2016.json</a>: failed tests of 2016, from the original notebook.</li>
+<li><a href="run2026.wls">run2026.wls</a> and <a href="results2026.json">results2026.json</a>: the 2026 run and its results.</li>
+<li><a href="run2026_collection.wls">run2026_collection.wls</a> and <a href="collection.json">collection.json</a>: the larger collection against <code>StringToDouble.wl</code> and method Z.</li>
+<li><a href="run2026_dotnet.wls">run2026_dotnet.wls</a>: method E through NETLink on current .NET.</li>
+<li><a href="net.ps1">net.ps1</a>: the <code>double.Parse</code> test. PowerShell 7 runs it on .NET 10, Windows PowerShell on .NET Framework 4.8.</li>
+<li><a href="StringToDouble.wl">StringToDouble.wl</a>: the exact conversion routine.</li>
+</ul>
+</main>
+</body>
+</html>

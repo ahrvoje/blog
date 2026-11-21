@@ -1,0 +1,393 @@
+/* Source Serif 4, variable, with the optical-size axis. SIL Open Font License. */
+@font-face {
+  font-family: "Source Serif VF";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(fonts/source-serif-4-latin-opsz-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Source Serif VF";
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(fonts/source-serif-4-latin-opsz-italic.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Source Serif VF";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(fonts/source-serif-4-latin-ext-opsz-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Source Serif VF";
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(fonts/source-serif-4-latin-ext-opsz-italic.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  color-scheme: light dark;
+  --paper: #fcfbf8;
+  --ink: #1d1b18;
+  --muted: #6d6860;
+  --rule: #ddd8ce;
+  --accent: #b3261e;
+  --measure: 34rem;
+  --wide: 58rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #171614;
+    --ink: #e2ddd4;
+    --muted: #99938a;
+    --rule: #37342f;
+    --accent: #f0796b;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* 17 px on a phone, 20 px on a desktop display. */
+  font-size: clamp(1.0625rem, 0.96rem + 0.45vw, 1.25rem);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: 1.5rem;
+}
+
+body {
+  margin: 0;
+  padding: 0 1.25rem 7rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Source Serif VF", "Source Serif 4", Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures contextual;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  line-height: 1.56;
+  text-rendering: optimizeLegibility;
+  hanging-punctuation: first;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+/* ------------------------------------------------------------ Layout */
+
+.site,
+main > * {
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+
+/* ------------------------------------------------------------ Site name */
+
+.site {
+  padding-top: 2.2rem;
+}
+.site a,
+.meta,
+.posts time {
+  font-variant-caps: all-small-caps;
+  font-variant-numeric: lining-nums proportional-nums;
+  letter-spacing: 0.07em;
+}
+.site a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  color: var(--muted);
+  text-decoration: none;
+}
+.site a:hover {
+  color: var(--accent);
+}
+.site img {
+  width: 0.8em;
+  height: 0.8em;
+}
+
+/* ------------------------------------------------------------ Headings */
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  text-wrap: balance;
+  font-variant-numeric: lining-nums proportional-nums;
+}
+h1 {
+  margin-top: 3.4rem;
+  margin-bottom: 0.7rem;
+  font-size: 2.3rem;
+  font-weight: 560;
+  line-height: 1.12;
+  letter-spacing: -0.014em;
+}
+h2 {
+  margin-top: 2.9rem;
+  margin-bottom: 0.7rem;
+  font-size: 1.36rem;
+  line-height: 1.25;
+  letter-spacing: -0.006em;
+}
+h3 {
+  margin-top: 2.2rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.08rem;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.meta {
+  margin-top: 0;
+  margin-bottom: 2.8rem;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------ Text */
+
+p {
+  margin-top: 0;
+  margin-bottom: 1.05em;
+  text-wrap: pretty;
+  hyphens: auto;
+  hyphenate-limit-chars: 7 3 3;
+}
+
+a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: max(1px, 0.045em);
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, currentColor 34%, transparent);
+  transition: color 0.12s, text-decoration-color 0.12s;
+}
+a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+blockquote {
+  margin-block: 1.6em;
+  padding-left: 1.3em;
+  border-left: 1px solid var(--rule);
+  color: color-mix(in srgb, var(--ink) 82%, var(--paper));
+}
+blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+ul,
+ol {
+  margin-top: 0;
+  margin-bottom: 1.05em;
+  padding-left: 1.5em;
+}
+li {
+  margin-block: 0.3em;
+}
+li::marker {
+  color: var(--muted);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+hr {
+  width: 5rem;
+  margin-block: 3rem;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
+td code {
+  white-space: nowrap;
+}
+code,
+pre {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 0.84em;
+  font-variant-ligatures: none;
+}
+pre {
+  overflow-x: auto;
+  margin-block: 1.6em;
+  padding: 0.9em 1.1em;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  line-height: 1.5;
+}
+
+main > table,
+main > pre {
+  width: fit-content;
+  max-width: min(100%, var(--wide));
+}
+table {
+  display: block;
+  overflow-x: auto;
+  margin-block: 1.8em;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+th,
+td {
+  padding: 0.4em 0.9em;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+}
+th {
+  border-bottom-color: var(--muted);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ Figures */
+
+main > figure {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem 1.25rem;
+  max-width: var(--wide);
+  margin-block: 2.2rem;
+}
+figure > a,
+figure > img {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  /* Paper shows through the white of scans and drawings. */
+  mix-blend-mode: multiply;
+}
+figcaption {
+  flex: 0 0 100%;
+  padding-inline: max(0px, (100% - var(--measure)) / 2);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  text-align: center;
+  text-wrap: balance;
+}
+/* A figure without a caption, directly before the next figure: keep them close. */
+main > figure:not(:has(figcaption)) + figure {
+  margin-top: -1rem;
+}
+@media (prefers-color-scheme: dark) {
+  figure img {
+    background: #fff;
+    mix-blend-mode: normal;
+  }
+}
+
+/* ------------------------------------------------------------ Mathematics */
+
+.katex {
+  font-size: 1.04em;
+}
+.math {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-block: 1.5em;
+  padding-block: 0.15em;
+}
+.math > .katex-display {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------ References */
+
+#references + ol {
+  font-size: 0.87rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#references + ol li {
+  margin-block: 0.55em;
+  hyphens: none;
+}
+:target {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: 0 0 0 0.3em color-mix(in srgb, var(--accent) 13%, transparent);
+  border-radius: 1px;
+}
+
+/* ------------------------------------------------------------ Home page */
+
+.home h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  margin-top: 5.5rem;
+  font-size: 2.6rem;
+}
+.home h1 img {
+  width: 0.78em;
+  height: 0.78em;
+}
+.posts {
+  margin-top: 3.4rem;
+  padding: 0;
+  list-style: none;
+}
+.posts li {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  align-items: baseline;
+  column-gap: 1rem;
+  margin: 0;
+  padding-block: 0.85rem;
+  border-top: 1px solid var(--rule);
+}
+.posts li:last-child {
+  border-bottom: 1px solid var(--rule);
+}
+.posts time {
+  color: var(--muted);
+}
+.posts a {
+  font-size: 1.18rem;
+  line-height: 1.3;
+  text-decoration: none;
+}
+@media (max-width: 30rem) {
+  .posts li {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  html {
+    font-size: 11pt;
+  }
+  .site {
+    display: none;
+  }
+  figure,
+  .math {
+    break-inside: avoid;
+  }
+}
