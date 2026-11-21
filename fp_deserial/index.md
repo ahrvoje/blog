@@ -163,6 +163,8 @@ Method W shows a second defect: `N` of an exact rational is not correctly rounde
 
 Method Z, the last one, passes all twenty tests. It is `strtod` of `ucrtbase.dll`, the Universal C Runtime of Windows, here version 10.0.26100. The old runtime `msvcrt.dll` (Y) fails five. Y and Z are the only routes that return the machine `Inf` for tests 19 and 20. Method K and current .NET return the symbol `Infinity`.
 
+Both runtimes are part of Windows today. The Universal C Runtime came with Visual C++ 2015 and is the one for new programs. `msvcrt.dll` stays, unchanged, for old ones. So the parser that a program gets depends on how the program was built, not on the Windows version. Nine libraries in `System32` export `strtod`: the four UCRT builds pass all tests, and the five older runtimes fail the same five as Y.
+
 ### The larger collection
 
 My test collection [strtod_tests.toml](https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/strtod_tests.toml) holds 81 conversion tests, 35 formatting tests and 22 strings that a reader must reject. `StringToDouble.wl` passes all of them.
