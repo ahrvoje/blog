@@ -5,8 +5,11 @@
 Needs["NETLink`"];
 InstallNET[UseNETFramework -> False];
 LoadNETType["System.Double"];
+LoadNETType["System.Globalization.CultureInfo"];
 LoadNETType["System.Runtime.InteropServices.RuntimeInformation"];
+(* AllowLeadingSign + AllowDecimalPoint + AllowExponent *)
+parseStyle = 4 + 32 + 128;
 tests = Import[FileNameJoin[{DirectoryName[$InputFileName], "tests.json"}], "RawJSON"];
 fails = Select[tests,
-    ! TrueQ[Quiet[SetPrecision[Quiet@Double`Parse[#[[2]]], Infinity] == ToExpression[#[[4]]]]] &][[All, 1]];
+    ! TrueQ[Quiet[SetPrecision[Quiet@Double`Parse[#[[2]], parseStyle, CultureInfo`InvariantCulture], Infinity] == ToExpression[#[[4]]]]] &][[All, 1]];
 Print[$Version, " | NETLink: ", RuntimeInformation`FrameworkDescription, " | E fails: ", fails];

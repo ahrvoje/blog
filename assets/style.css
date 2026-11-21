@@ -39,6 +39,13 @@
   --muted: #6d6860;
   --rule: #ddd8ce;
   --accent: #b3261e;
+  --code-comment: #8a8478;
+  --code-string: #7a5c1e;
+  --code-number: #0a7f73;
+  --code-function: #1257d6;
+  --code-variable: #c0166f;
+  --on: #0a9f3c;
+  --off: #e3182d;
   --measure: 34rem;
   --wide: 58rem;
 }
@@ -49,6 +56,13 @@
     --muted: #99938a;
     --rule: #37342f;
     --accent: #f0796b;
+    --code-comment: #8f897f;
+    --code-string: #d0b877;
+    --code-number: #5fd4c4;
+    --code-function: #6ea8ff;
+    --code-variable: #ff7ac0;
+    --on: #35e07a;
+    --off: #ff4d5e;
   }
 }
 
@@ -217,6 +231,22 @@ hr {
   border-top: 1px solid var(--rule);
 }
 
+pre .c {
+  color: var(--code-comment);
+  font-style: italic;
+}
+pre .s {
+  color: var(--code-string);
+}
+pre .n {
+  color: var(--code-number);
+}
+pre .f {
+  color: var(--code-function);
+}
+pre .v {
+  color: var(--code-variable);
+}
 td code {
   white-space: nowrap;
 }
@@ -253,6 +283,16 @@ td {
   padding: 0.4em 0.9em;
   border-bottom: 1px solid var(--rule);
   text-align: left;
+}
+.on,
+.off {
+  font-weight: 600;
+}
+.on {
+  color: var(--on);
+}
+.off {
+  color: var(--off);
 }
 th {
   border-bottom-color: var(--muted);

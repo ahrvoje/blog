@@ -18,7 +18,25 @@ const esc = (s) =>
 
 // ---------------------------------------------------------------- Markdown
 
-const md = new MarkdownIt({ html: true, typographer: true }).use(attrs);
+// Subtle colour for code blocks: comments (* ... *), strings, numbers, functions
+// and variables. A name is a function if a call follows it ("[", "@" or "/@") or if it
+// starts with a capital letter (a built-in symbol); other names are variables.
+// One capital letter at the start of a line, before two spaces, is a row label.
+const highlight = (code) =>
+  code.replace(
+    /(\(\*[\s\S]*?\*\))|("(?:\\.|[^"\\])*")|([A-Za-z$][A-Za-z0-9$`]*)|(\b\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\b)|[&<>]/g,
+    (m, comment, string, name, number, offset) => {
+      let kind = comment ? 'c' : string ? 's' : number ? 'n' : '';
+      if (name) {
+        const next = code.slice(offset + m.length);
+        const label = m.length === 1 && /^[A-Z]$/.test(m) && /^ {2}/.test(next) && (offset === 0 || code[offset - 1] === '\n');
+        if (!label) kind = /^([[@]| ?\/@)/.test(next) || /^[A-Z]/.test(m) ? 'f' : 'v';
+      }
+      return kind ? `<span class="${kind}">${esc(m)}</span>` : esc(m);
+    },
+  );
+
+const md = new MarkdownIt({ html: true, typographer: true, highlight }).use(attrs);
 
 // $$ ... $$ on its own lines: display math.
 md.block.ruler.before(

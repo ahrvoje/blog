@@ -6,7 +6,9 @@ author: Hrvoje Abraham
 
 A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. This post shows the 2016 results and the same test repeated in 2026.
 
-Only one short native route is correct on all test strings: the C function `strtod` of the Windows C runtime, loaded into the kernel, with a check that it read the whole string. Of the other 25 routes in this post, 22 fail on the first input below. The second input is not a number, and the route rejects it.
+Two independent routes read all test strings correctly from Wolfram: the C function `strtod` of the Windows C runtime, and `Double.Parse` of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.
+
+The first route is `strtod`, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.
 
 ```
 c = "RawPointer"::["UnsignedInteger8"]; end = RawMemoryAllocate[c];
@@ -14,8 +16,24 @@ strtod = ForeignFunctionLoad["C:\\Windows\\System32\\ucrtbase.dll",
   "strtod", {c, "RawPointer"::[c]} -> "CDouble"];
 read[s_] := Module[{p = RawMemoryExport[s], x}, x = strtod[p, end];
   If[s != "" && RawMemoryRead@RawMemoryRead@end == 0, x, $Failed]]
-read /@ {"2.4703282292062328e-324", "1.0e"}   (* {5.*^-324, $Failed} *)
+read /@ {"2.4703282292062328e-324", "1.0e", "inf"}
+(* {5.*^-324, $Failed, Inf} *)
 ```
+
+The second route is current .NET through NETLink. Without the option, NETLink loads the old .NET Framework, which is not correct. `Needs` must stand on its own line, or the option has no effect. The invariant culture is necessary for `infinity`. The style permits a sign, a decimal point and an exponent, and nothing more; with the default style, .NET reads `1,5` as 15.
+
+```
+Needs["NETLink`"]
+InstallNET[UseNETFramework -> False];
+LoadNETType /@ {"System.Double", "System.Globalization.CultureInfo"};
+(* AllowLeadingSign + AllowDecimalPoint + AllowExponent *)
+parseStyle = 4 + 32 + 128;
+Double`Parse[#, parseStyle, CultureInfo`InvariantCulture] & /@
+  {"2.4703282292062328e-324", "infinity", "inf", "1,5"}
+(* {5.*^-324, Infinity, $Failed, $Failed} *)
+```
+
+.NET does not accept `inf`. IEEE 754-2008 (clause 5.12.1) names both `inf` and `infinity`, in any letter case, so .NET deviates from the standard at this point. Its numbers are correct.
 
 ## The test
 
@@ -173,7 +191,7 @@ Method Z reads the 81 conversion tests bit for bit and rejects all 22 bad string
 
 ### Current .NET and the exact routine
 
-Wolfram 15 can also load current .NET. `InstallNET[UseNETFramework -> False]` starts NETLink on the lowest installed version from 6 up, here .NET 7.0. With the environment variable `DOTNET_ROLL_FORWARD=LatestMajor` it starts on the highest one, here .NET 9.0. .NET 10 is not installed for all programs on this computer, so I tested it through PowerShell 7.
+Wolfram 15 can also load current .NET. `InstallNET[UseNETFramework -> False]` starts NETLink on the lowest installed version from 6 up, here .NET 7.0. With the environment variable `DOTNET_ROLL_FORWARD=LatestMajor` it starts on the highest one, here .NET 9.0. .NET 10 is not installed for all programs on this computer, so I tested it through PowerShell 7. Use the newest version: .NET 7.0 gives zero for one 774-character string of the larger collection (test C79), where .NET 9.0 and 10.0 are correct.
 
 | Route | Failed tests | Count |
 |:---|:---|---:|
@@ -182,6 +200,77 @@ Wolfram 15 can also load current .NET. `InstallNET[UseNETFramework -> False]` st
 | `StringToDouble.wl`, version 3 of June 2016 | none | 0 |
 
 Current .NET reads all twenty strings correctly, also when Wolfram calls it.
+
+### Three correct readers
+
+Method Z, current .NET and `StringToDouble.wl` are independent code. With .NET 9.0 or 10.0, they agree bit for bit on the twenty tests and on the 81 conversion tests of the collection. They differ in the text that they accept. The .NET column is for the invariant culture and the default parse style.
+
+| Input | Z, UCRT `strtod` | .NET 10 `double.Parse` | `StringToDouble.wl` |
+|:---|:---|:---|:---|
+| the 22 bad strings | rejected | rejected | rejected |
+| `inf`, `-inf`, `+INF` | infinity | rejected | infinity |
+| `infinity`, `Infinity` | infinity | infinity | infinity |
+| `nan` | NaN | NaN, sign bit set | NaN |
+| `+nan(catch_22)`, `-nan()` | NaN | rejected | NaN |
+| `nan(type-0)` | rejected | rejected | NaN |
+| `1,5` | rejected | 15 | rejected |
+| `" 1.5"` | 1.5 | 1.5 | rejected |
+| `"1.5 "` | rejected | 1.5 | rejected |
+| `0x1p3` | 8 | rejected | rejected |
+
+For numbers the three readers can replace each other. For infinity, NaN and the decision what is valid text, they cannot.
+
+Two results of .NET depend on the culture. The first is infinity. A culture has one text for it, and `double.Parse` accepts only that text, in any letter case. The 890 cultures of .NET 10 have these texts:
+
+| Text for infinity | Cultures | Examples |
+|:---|---:|:---|
+| `∞` | 886 | `en-US`, `hr-HR` |
+| the Dzongkha word | 2 | `dz`, `dz-BT` |
+| `INF` | 1 | `en-US-POSIX` |
+| `Infinity` | 1 | the invariant culture |
+
+So no culture accepts both `inf` and `infinity`.
+
+The second is the comma. .NET reads the comma in `1,5` as a digit group mark and returns 15. A culture rejects `1,5` only if its decimal mark is the point and its group mark is not the comma. Of the 465 cultures with a decimal point, 42 are of this kind:
+
+| Group mark | Cultures | Examples |
+|:---|---:|:---|
+| apostrophe `’` | 10 | `de-CH`, `de-LI`, `en-CH`, `it-CH`, `rm` |
+| no-break space | 17 | `tn`, `xh`, `nso`, `mfe` |
+| other marks | 15 | `ff-Adlm`, `nqo` |
+
+A culture is not necessary for this. `double.Parse` also takes a parse style, and a stricter style than the default rejects the comma. With the invariant culture:
+
+| Input | Default style | `NumberStyles.Float` | Sign, point and exponent only |
+|:---|:---|:---|:---|
+| `1.5` | 1.5 | 1.5 | 1.5 |
+| `1,5` | 15 | rejected | rejected |
+| `1,000.5` | 1000.5 | rejected | rejected |
+| `" 1.5"` | 1.5 | 1.5 | rejected |
+| `"1.5 "` | 1.5 | 1.5 | rejected |
+| `-1.5e3` | −1500 | −1500 | −1500 |
+| `infinity` | infinity | infinity | infinity |
+| `nan` | NaN | NaN | NaN |
+
+The last style is `AllowLeadingSign`, `AllowDecimalPoint` and `AllowExponent`, the one of the example in the introduction. With it, .NET and `StringToDouble.wl` accept the same numbers of the collection. Only infinity and NaN stay different.
+
+A parse style is a sum of flags. .NET 10 has eleven, and the style of the example sets three of them:
+
+| Flag | Value | Example style | Permits |
+|:---|---:|:---|:---|
+| `AllowLeadingWhite` | 1 | <span class="off">off</span> | white space before the number |
+| `AllowTrailingWhite` | 2 | <span class="off">off</span> | white space after the number |
+| `AllowLeadingSign` | 4 | <span class="on">on</span> | a sign before the number |
+| `AllowTrailingSign` | 8 | <span class="off">off</span> | a sign after the number, as in `5-` |
+| `AllowParentheses` | 16 | <span class="off">off</span> | `(5)` for −5 |
+| `AllowDecimalPoint` | 32 | <span class="on">on</span> | the decimal point |
+| `AllowThousands` | 64 | <span class="off">off</span> | digit group marks, as in `1,000` |
+| `AllowExponent` | 128 | <span class="on">on</span> | an exponent, as in `1e5` |
+| `AllowCurrencySymbol` | 256 | <span class="off">off</span> | a currency sign |
+| `AllowHexSpecifier` | 512 | <span class="off">off</span> | hexadecimal digits |
+| `AllowBinarySpecifier` | 1024 | <span class="off">off</span> | binary digits |
+
+The default style is 231: the three flags of the example, the two for white space, and `AllowThousands`. `NumberStyles.Float` is 167, the default without `AllowThousands`.
 
 ## Conclusion
 
@@ -194,5 +283,7 @@ In ten years Wolfram repaired underflow, but no route through the kernel parser 
 - [run2026.wls](run2026.wls) and [results2026.json](results2026.json): the 2026 run and its results.
 - [run2026_collection.wls](run2026_collection.wls) and [collection.json](collection.json): the larger collection against `StringToDouble.wl` and method Z.
 - [run2026_dotnet.wls](run2026_dotnet.wls): method E through NETLink on current .NET.
+- [collection_dotnet.ps1](collection_dotnet.ps1): the larger collection against `double.Parse`.
+- [cultures_dotnet.ps1](cultures_dotnet.ps1): the cultures of .NET, their text for infinity, their group marks, and the parse styles.
 - [net.ps1](net.ps1): the `double.Parse` test. PowerShell 7 runs it on .NET 10, Windows PowerShell on .NET Framework 4.8.
 - [StringToDouble.wl](StringToDouble.wl): the exact conversion routine.

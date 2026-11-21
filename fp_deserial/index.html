@@ -27,14 +27,27 @@
 <h1>Floating Point deserialization</h1>
 <p class="meta"><time datetime="2026-11-21">21 November 2026</time> · Hrvoje Abraham</p>
 <p>A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. This post shows the 2016 results and the same test repeated in 2026.</p>
-<p>Only one short native route is correct on all test strings: the C function <code>strtod</code> of the Windows C runtime, loaded into the kernel, with a check that it read the whole string. Of the other 25 routes in this post, 22 fail on the first input below. The second input is not a number, and the route rejects it.</p>
-<pre><code>c = &quot;RawPointer&quot;::[&quot;UnsignedInteger8&quot;]; end = RawMemoryAllocate[c];
-strtod = ForeignFunctionLoad[&quot;C:\\Windows\\System32\\ucrtbase.dll&quot;,
-  &quot;strtod&quot;, {c, &quot;RawPointer&quot;::[c]} -&gt; &quot;CDouble&quot;];
-read[s_] := Module[{p = RawMemoryExport[s], x}, x = strtod[p, end];
-  If[s != &quot;&quot; &amp;&amp; RawMemoryRead@RawMemoryRead@end == 0, x, $Failed]]
-read /@ {&quot;2.4703282292062328e-324&quot;, &quot;1.0e&quot;}   (* {5.*^-324, $Failed} *)
+<p>Two independent routes read all test strings correctly from Wolfram: the C function <code>strtod</code> of the Windows C runtime, and <code>Double.Parse</code> of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.</p>
+<p>The first route is <code>strtod</code>, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.</p>
+<pre><code><span class="v">c</span> = <span class="s">&quot;RawPointer&quot;</span>::[<span class="s">&quot;UnsignedInteger8&quot;</span>]; <span class="v">end</span> = <span class="f">RawMemoryAllocate</span>[<span class="v">c</span>];
+<span class="v">strtod</span> = <span class="f">ForeignFunctionLoad</span>[<span class="s">&quot;C:\\Windows\\System32\\ucrtbase.dll&quot;</span>,
+  <span class="s">&quot;strtod&quot;</span>, {<span class="v">c</span>, <span class="s">&quot;RawPointer&quot;</span>::[<span class="v">c</span>]} -&gt; <span class="s">&quot;CDouble&quot;</span>];
+<span class="f">read</span>[<span class="v">s</span>_] := <span class="f">Module</span>[{<span class="v">p</span> = <span class="f">RawMemoryExport</span>[<span class="v">s</span>], <span class="v">x</span>}, <span class="v">x</span> = <span class="f">strtod</span>[<span class="v">p</span>, <span class="v">end</span>];
+  <span class="f">If</span>[<span class="v">s</span> != <span class="s">&quot;&quot;</span> &amp;&amp; <span class="f">RawMemoryRead</span>@<span class="f">RawMemoryRead</span>@<span class="v">end</span> == <span class="n">0</span>, <span class="v">x</span>, <span class="v">$Failed</span>]]
+<span class="f">read</span> /@ {<span class="s">&quot;2.4703282292062328e-324&quot;</span>, <span class="s">&quot;1.0e&quot;</span>, <span class="s">&quot;inf&quot;</span>}
+<span class="c">(* {5.*^-324, $Failed, Inf} *)</span>
 </code></pre>
+<p>The second route is current .NET through NETLink. Without the option, NETLink loads the old .NET Framework, which is not correct. <code>Needs</code> must stand on its own line, or the option has no effect. The invariant culture is necessary for <code>infinity</code>. The style permits a sign, a decimal point and an exponent, and nothing more; with the default style, .NET reads <code>1,5</code> as 15.</p>
+<pre><code><span class="f">Needs</span>[<span class="s">&quot;NETLink`&quot;</span>]
+<span class="f">InstallNET</span>[<span class="f">UseNETFramework</span> -&gt; <span class="f">False</span>];
+<span class="f">LoadNETType</span> /@ {<span class="s">&quot;System.Double&quot;</span>, <span class="s">&quot;System.Globalization.CultureInfo&quot;</span>};
+<span class="c">(* AllowLeadingSign + AllowDecimalPoint + AllowExponent *)</span>
+<span class="v">parseStyle</span> = <span class="n">4</span> + <span class="n">32</span> + <span class="n">128</span>;
+<span class="f">Double`Parse</span>[#, <span class="v">parseStyle</span>, <span class="f">CultureInfo`InvariantCulture</span>] &amp; /@
+  {<span class="s">&quot;2.4703282292062328e-324&quot;</span>, <span class="s">&quot;infinity&quot;</span>, <span class="s">&quot;inf&quot;</span>, <span class="s">&quot;1,5&quot;</span>}
+<span class="c">(* {5.*^-324, Infinity, $Failed, $Failed} *)</span>
+</code></pre>
+<p>.NET does not accept <code>inf</code>. IEEE 754-2008 (clause 5.12.1) names both <code>inf</code> and <code>infinity</code>, in any letter case, so .NET deviates from the standard at this point. Its numbers are correct.</p>
 <h2 id="the-test">The test</h2>
 <p>Twenty strings from the hard regions: underflow, subnormal numbers, halfway cases and overflow. A method passes a test when its result, taken exactly, is equal to the correct double. Where infinity is correct, each form of infinity passes. Two forms occurred: the symbol <code>Infinity</code>, and the IEEE infinity as a machine number, which Wolfram prints as <code>Inf</code>.</p>
 <table>
@@ -171,18 +184,18 @@ read /@ {&quot;2.4703282292062328e-324&quot;, &quot;1.0e&quot;}   (* {5.*^-324, 
 </table>
 <h2 id="the-methods">The methods</h2>
 <p>Eleven ways to read the string <code>s</code>, as written in 2016. Fifteen more follow in the 2026 section. Method E is <code>System.Double.Parse</code> of .NET, called through NETLink. Method D has a 2016 form and a 2026 form, because <code>Internal`StringToDouble</code> does not exist in Wolfram 15.</p>
-<pre><code>A   N@ToExpression@StringReplace[s, &quot;e&quot; | &quot;E&quot; -&gt; &quot;*10^&quot;]
-B   N@ToExpression@StringReplace[s, &quot;e&quot; | &quot;E&quot; -&gt; &quot;*^&quot;]
-C   (N@# &amp;)[Read[#, Number], Close@#] &amp;@StringToStream@s
-D   Internal`StringToDouble@s        (2016)
-    Internal`StringToMReal@s         (2026)
-E   Double`Parse@s
-F   N@ImportString[s, &quot;JSON&quot;]
-G   N@Interpreter[&quot;Number&quot;][s]
-H   N@First@ImportString[s, &quot;List&quot;]
-I   N@ImportString[s, &quot;CSV&quot;][[1, 1]]
-J   N@ImportString[s, &quot;Table&quot;][[1, 1]]
-K   First@ImportString[ExportString[N@First@ImportString[s, &quot;List&quot;], &quot;Real64&quot;], &quot;Real64&quot;]
+<pre><code>A   <span class="f">N</span>@<span class="f">ToExpression</span>@<span class="f">StringReplace</span>[<span class="v">s</span>, <span class="s">&quot;e&quot;</span> | <span class="s">&quot;E&quot;</span> -&gt; <span class="s">&quot;*10^&quot;</span>]
+B   <span class="f">N</span>@<span class="f">ToExpression</span>@<span class="f">StringReplace</span>[<span class="v">s</span>, <span class="s">&quot;e&quot;</span> | <span class="s">&quot;E&quot;</span> -&gt; <span class="s">&quot;*^&quot;</span>]
+C   (<span class="f">N</span>@# &amp;)[<span class="f">Read</span>[#, <span class="f">Number</span>], <span class="f">Close</span>@#] &amp;@<span class="f">StringToStream</span>@<span class="v">s</span>
+D   <span class="f">Internal`StringToDouble</span>@<span class="v">s</span>        (<span class="n">2016</span>)
+    <span class="f">Internal`StringToMReal</span>@<span class="v">s</span>         (<span class="n">2026</span>)
+E   <span class="f">Double`Parse</span>@<span class="v">s</span>
+F   <span class="f">N</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;JSON&quot;</span>]
+G   <span class="f">N</span>@<span class="f">Interpreter</span>[<span class="s">&quot;Number&quot;</span>][<span class="v">s</span>]
+H   <span class="f">N</span>@<span class="f">First</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;List&quot;</span>]
+I   <span class="f">N</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;CSV&quot;</span>][[<span class="n">1</span>, <span class="n">1</span>]]
+J   <span class="f">N</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;Table&quot;</span>][[<span class="n">1</span>, <span class="n">1</span>]]
+K   <span class="f">First</span>@<span class="f">ImportString</span>[<span class="f">ExportString</span>[<span class="f">N</span>@<span class="f">First</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;List&quot;</span>], <span class="s">&quot;Real64&quot;</span>], <span class="s">&quot;Real64&quot;</span>]
 </code></pre>
 <h2 id="2016">2016</h2>
 <p><em>Mathematica 10.4 on Windows, 24 April 2016.</em></p>
@@ -327,29 +340,29 @@ K   First@ImportString[ExportString[N@First@ImportString[s, &quot;List&quot;], &
 <p>The rule compares values only. For tests 6, 7, 19 and 20, method K now returns the correct value, but not as a machine double.</p>
 <h3 id="routes-added-in-2026">Routes added in 2026</h3>
 <p>Fifteen more routes, L to Z, with three helpers. <code>mark</code> writes a precision mark into the string. <code>rational</code> builds the exact rational value of the string. <code>atof</code> loads the C function <code>atof</code> from a Windows system library. Method Z uses <code>read</code> from the introduction.</p>
-<pre><code>mark[s_, p_] := If[StringContainsQ[s, &quot;e&quot; | &quot;E&quot;], StringReplace[s, &quot;e&quot; | &quot;E&quot; -&gt; p &lt;&gt; &quot;*^&quot;], s &lt;&gt; p]
-rational[s_] := Module[{m, e, d},
-  {m, e} = StringSplit[If[StringFreeQ[s, &quot;e&quot; | &quot;E&quot;], s &lt;&gt; &quot;e0&quot;, s], &quot;e&quot; | &quot;E&quot;];
-  d = If[StringFreeQ[m, &quot;.&quot;], 0, StringLength[m] - First@First@StringPosition[m, &quot;.&quot;]];
-  ToExpression[StringDelete[m, &quot;.&quot;]]*10^(ToExpression[e] - d)]
-atof[lib_] := ForeignFunctionLoad[FileNameJoin[{Environment[&quot;SystemRoot&quot;], &quot;System32&quot;, lib}],
-  &quot;atof&quot;, {&quot;RawPointer&quot;::[&quot;UnsignedInteger8&quot;]} -&gt; &quot;CDouble&quot;]
+<pre><code><span class="f">mark</span>[<span class="v">s</span>_, <span class="v">p</span>_] := <span class="f">If</span>[<span class="f">StringContainsQ</span>[<span class="v">s</span>, <span class="s">&quot;e&quot;</span> | <span class="s">&quot;E&quot;</span>], <span class="f">StringReplace</span>[<span class="v">s</span>, <span class="s">&quot;e&quot;</span> | <span class="s">&quot;E&quot;</span> -&gt; <span class="v">p</span> &lt;&gt; <span class="s">&quot;*^&quot;</span>], <span class="v">s</span> &lt;&gt; <span class="v">p</span>]
+<span class="f">rational</span>[<span class="v">s</span>_] := <span class="f">Module</span>[{<span class="v">m</span>, <span class="v">e</span>, <span class="v">d</span>},
+  {<span class="v">m</span>, <span class="v">e</span>} = <span class="f">StringSplit</span>[<span class="f">If</span>[<span class="f">StringFreeQ</span>[<span class="v">s</span>, <span class="s">&quot;e&quot;</span> | <span class="s">&quot;E&quot;</span>], <span class="v">s</span> &lt;&gt; <span class="s">&quot;e0&quot;</span>, <span class="v">s</span>], <span class="s">&quot;e&quot;</span> | <span class="s">&quot;E&quot;</span>];
+  <span class="v">d</span> = <span class="f">If</span>[<span class="f">StringFreeQ</span>[<span class="v">m</span>, <span class="s">&quot;.&quot;</span>], <span class="n">0</span>, <span class="f">StringLength</span>[<span class="v">m</span>] - <span class="f">First</span>@<span class="f">First</span>@<span class="f">StringPosition</span>[<span class="v">m</span>, <span class="s">&quot;.&quot;</span>]];
+  <span class="f">ToExpression</span>[<span class="f">StringDelete</span>[<span class="v">m</span>, <span class="s">&quot;.&quot;</span>]]*<span class="n">10</span>^(<span class="f">ToExpression</span>[<span class="v">e</span>] - <span class="v">d</span>)]
+<span class="f">atof</span>[<span class="v">lib</span>_] := <span class="f">ForeignFunctionLoad</span>[<span class="f">FileNameJoin</span>[{<span class="f">Environment</span>[<span class="s">&quot;SystemRoot&quot;</span>], <span class="s">&quot;System32&quot;</span>, <span class="v">lib</span>}],
+  <span class="s">&quot;atof&quot;</span>, {<span class="s">&quot;RawPointer&quot;</span>::[<span class="s">&quot;UnsignedInteger8&quot;</span>]} -&gt; <span class="s">&quot;CDouble&quot;</span>]
 
-L   ToExpression@mark[s, &quot;`&quot;]
-M   N@ToExpression@mark[s, &quot;`2000&quot;]
-N   (N@# &amp;)[Read[#, Real], Close@#] &amp;@StringToStream@s
-O   N@First@ReadList[StringToStream@s, Real]
-P   N@ImportString[s, &quot;RawJSON&quot;]
-Q   N@ImportString[s, &quot;ExpressionJSON&quot;]
-R   N@Developer`ReadRawJSONString@s
-S   N@ImportString[s, &quot;TSV&quot;][[1, 1]]
-T   N@ImportString[s, &quot;YAML&quot;]
-U   N@Interpreter[&quot;Real&quot;][s]
-V   N@First@SemanticImportString[s, &quot;Number&quot;, &quot;List&quot;]
-W   N@rational@s
-X   N@N[rational@s, 40]
-Y   atof[&quot;msvcrt.dll&quot;]@RawMemoryExport@s
-Z   read@s
+L   <span class="f">ToExpression</span>@<span class="f">mark</span>[<span class="v">s</span>, <span class="s">&quot;`&quot;</span>]
+M   <span class="f">N</span>@<span class="f">ToExpression</span>@<span class="f">mark</span>[<span class="v">s</span>, <span class="s">&quot;`2000&quot;</span>]
+N   (<span class="f">N</span>@# &amp;)[<span class="f">Read</span>[#, <span class="f">Real</span>], <span class="f">Close</span>@#] &amp;@<span class="f">StringToStream</span>@<span class="v">s</span>
+O   <span class="f">N</span>@<span class="f">First</span>@<span class="f">ReadList</span>[<span class="f">StringToStream</span>@<span class="v">s</span>, <span class="f">Real</span>]
+P   <span class="f">N</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;RawJSON&quot;</span>]
+Q   <span class="f">N</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;ExpressionJSON&quot;</span>]
+R   <span class="f">N</span>@<span class="f">Developer`ReadRawJSONString</span>@<span class="v">s</span>
+S   <span class="f">N</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;TSV&quot;</span>][[<span class="n">1</span>, <span class="n">1</span>]]
+T   <span class="f">N</span>@<span class="f">ImportString</span>[<span class="v">s</span>, <span class="s">&quot;YAML&quot;</span>]
+U   <span class="f">N</span>@<span class="f">Interpreter</span>[<span class="s">&quot;Real&quot;</span>][<span class="v">s</span>]
+V   <span class="f">N</span>@<span class="f">First</span>@<span class="f">SemanticImportString</span>[<span class="v">s</span>, <span class="s">&quot;Number&quot;</span>, <span class="s">&quot;List&quot;</span>]
+W   <span class="f">N</span>@<span class="f">rational</span>@<span class="v">s</span>
+X   <span class="f">N</span>@<span class="f">N</span>[<span class="f">rational</span>@<span class="v">s</span>, <span class="n">40</span>]
+Y   <span class="f">atof</span>[<span class="s">&quot;msvcrt.dll&quot;</span>]@<span class="f">RawMemoryExport</span>@<span class="v">s</span>
+Z   <span class="f">read</span>@<span class="v">s</span>
 </code></pre>
 <table>
 <thead>
@@ -445,7 +458,7 @@ Z   read@s
 <p>My test collection <a href="https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/strtod_tests.toml">strtod_tests.toml</a> holds 81 conversion tests, 35 formatting tests and 22 strings that a reader must reject. <code>StringToDouble.wl</code> passes all of them.</p>
 <p>Method Z reads the 81 conversion tests bit for bit and rejects all 22 bad strings. The whole-string check is necessary for that: by the C standard, <code>strtod</code> converts the longest valid start of a string, so <code>1.0e</code> alone gives 1. Two differences stay, both in NaN. Its payload is not the one of the collection, and <code>nan(type-0)</code> is rejected, because C does not permit a hyphen there. Outside the collection, <code>strtod</code> also accepts leading white space and hexadecimal numbers such as <code>0x1p3</code>.</p>
 <h3 id="current-net-and-the-exact-routine">Current .NET and the exact routine</h3>
-<p>Wolfram 15 can also load current .NET. <code>InstallNET[UseNETFramework -&gt; False]</code> starts NETLink on the lowest installed version from 6 up, here .NET 7.0. With the environment variable <code>DOTNET_ROLL_FORWARD=LatestMajor</code> it starts on the highest one, here .NET 9.0. .NET 10 is not installed for all programs on this computer, so I tested it through PowerShell 7.</p>
+<p>Wolfram 15 can also load current .NET. <code>InstallNET[UseNETFramework -&gt; False]</code> starts NETLink on the lowest installed version from 6 up, here .NET 7.0. With the environment variable <code>DOTNET_ROLL_FORWARD=LatestMajor</code> it starts on the highest one, here .NET 9.0. .NET 10 is not installed for all programs on this computer, so I tested it through PowerShell 7. Use the newest version: .NET 7.0 gives zero for one 774-character string of the larger collection (test C79), where .NET 9.0 and 10.0 are correct.</p>
 <table>
 <thead>
 <tr>
@@ -473,6 +486,283 @@ Z   read@s
 </tbody>
 </table>
 <p>Current .NET reads all twenty strings correctly, also when Wolfram calls it.</p>
+<h3 id="three-correct-readers">Three correct readers</h3>
+<p>Method Z, current .NET and <code>StringToDouble.wl</code> are independent code. With .NET 9.0 or 10.0, they agree bit for bit on the twenty tests and on the 81 conversion tests of the collection. They differ in the text that they accept. The .NET column is for the invariant culture and the default parse style.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Input</th>
+<th style="text-align:left">Z, UCRT <code>strtod</code></th>
+<th style="text-align:left">.NET 10 <code>double.Parse</code></th>
+<th style="text-align:left"><code>StringToDouble.wl</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">the 22 bad strings</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>inf</code>, <code>-inf</code>, <code>+INF</code></td>
+<td style="text-align:left">infinity</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">infinity</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>infinity</code>, <code>Infinity</code></td>
+<td style="text-align:left">infinity</td>
+<td style="text-align:left">infinity</td>
+<td style="text-align:left">infinity</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>nan</code></td>
+<td style="text-align:left">NaN</td>
+<td style="text-align:left">NaN, sign bit set</td>
+<td style="text-align:left">NaN</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>+nan(catch_22)</code>, <code>-nan()</code></td>
+<td style="text-align:left">NaN</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">NaN</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>nan(type-0)</code></td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">NaN</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>1,5</code></td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">15</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>&quot; 1.5&quot;</code></td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>&quot;1.5 &quot;</code></td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>0x1p3</code></td>
+<td style="text-align:left">8</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">rejected</td>
+</tr>
+</tbody>
+</table>
+<p>For numbers the three readers can replace each other. For infinity, NaN and the decision what is valid text, they cannot.</p>
+<p>Two results of .NET depend on the culture. The first is infinity. A culture has one text for it, and <code>double.Parse</code> accepts only that text, in any letter case. The 890 cultures of .NET 10 have these texts:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Text for infinity</th>
+<th style="text-align:right">Cultures</th>
+<th style="text-align:left">Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>∞</code></td>
+<td style="text-align:right">886</td>
+<td style="text-align:left"><code>en-US</code>, <code>hr-HR</code></td>
+</tr>
+<tr>
+<td style="text-align:left">the Dzongkha word</td>
+<td style="text-align:right">2</td>
+<td style="text-align:left"><code>dz</code>, <code>dz-BT</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>INF</code></td>
+<td style="text-align:right">1</td>
+<td style="text-align:left"><code>en-US-POSIX</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Infinity</code></td>
+<td style="text-align:right">1</td>
+<td style="text-align:left">the invariant culture</td>
+</tr>
+</tbody>
+</table>
+<p>So no culture accepts both <code>inf</code> and <code>infinity</code>.</p>
+<p>The second is the comma. .NET reads the comma in <code>1,5</code> as a digit group mark and returns 15. A culture rejects <code>1,5</code> only if its decimal mark is the point and its group mark is not the comma. Of the 465 cultures with a decimal point, 42 are of this kind:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Group mark</th>
+<th style="text-align:right">Cultures</th>
+<th style="text-align:left">Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">apostrophe <code>’</code></td>
+<td style="text-align:right">10</td>
+<td style="text-align:left"><code>de-CH</code>, <code>de-LI</code>, <code>en-CH</code>, <code>it-CH</code>, <code>rm</code></td>
+</tr>
+<tr>
+<td style="text-align:left">no-break space</td>
+<td style="text-align:right">17</td>
+<td style="text-align:left"><code>tn</code>, <code>xh</code>, <code>nso</code>, <code>mfe</code></td>
+</tr>
+<tr>
+<td style="text-align:left">other marks</td>
+<td style="text-align:right">15</td>
+<td style="text-align:left"><code>ff-Adlm</code>, <code>nqo</code></td>
+</tr>
+</tbody>
+</table>
+<p>A culture is not necessary for this. <code>double.Parse</code> also takes a parse style, and a stricter style than the default rejects the comma. With the invariant culture:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Input</th>
+<th style="text-align:left">Default style</th>
+<th style="text-align:left"><code>NumberStyles.Float</code></th>
+<th style="text-align:left">Sign, point and exponent only</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>1.5</code></td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">1.5</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>1,5</code></td>
+<td style="text-align:left">15</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>1,000.5</code></td>
+<td style="text-align:left">1000.5</td>
+<td style="text-align:left">rejected</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>&quot; 1.5&quot;</code></td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>&quot;1.5 &quot;</code></td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">1.5</td>
+<td style="text-align:left">rejected</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>-1.5e3</code></td>
+<td style="text-align:left">−1500</td>
+<td style="text-align:left">−1500</td>
+<td style="text-align:left">−1500</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>infinity</code></td>
+<td style="text-align:left">infinity</td>
+<td style="text-align:left">infinity</td>
+<td style="text-align:left">infinity</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>nan</code></td>
+<td style="text-align:left">NaN</td>
+<td style="text-align:left">NaN</td>
+<td style="text-align:left">NaN</td>
+</tr>
+</tbody>
+</table>
+<p>The last style is <code>AllowLeadingSign</code>, <code>AllowDecimalPoint</code> and <code>AllowExponent</code>, the one of the example in the introduction. With it, .NET and <code>StringToDouble.wl</code> accept the same numbers of the collection. Only infinity and NaN stay different.</p>
+<p>A parse style is a sum of flags. .NET 10 has eleven, and the style of the example sets three of them:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Flag</th>
+<th style="text-align:right">Value</th>
+<th style="text-align:left">Example style</th>
+<th style="text-align:left">Permits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>AllowLeadingWhite</code></td>
+<td style="text-align:right">1</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left">white space before the number</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowTrailingWhite</code></td>
+<td style="text-align:right">2</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left">white space after the number</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowLeadingSign</code></td>
+<td style="text-align:right">4</td>
+<td style="text-align:left"><span class="on">on</span></td>
+<td style="text-align:left">a sign before the number</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowTrailingSign</code></td>
+<td style="text-align:right">8</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left">a sign after the number, as in <code>5-</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowParentheses</code></td>
+<td style="text-align:right">16</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left"><code>(5)</code> for −5</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowDecimalPoint</code></td>
+<td style="text-align:right">32</td>
+<td style="text-align:left"><span class="on">on</span></td>
+<td style="text-align:left">the decimal point</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowThousands</code></td>
+<td style="text-align:right">64</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left">digit group marks, as in <code>1,000</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowExponent</code></td>
+<td style="text-align:right">128</td>
+<td style="text-align:left"><span class="on">on</span></td>
+<td style="text-align:left">an exponent, as in <code>1e5</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowCurrencySymbol</code></td>
+<td style="text-align:right">256</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left">a currency sign</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowHexSpecifier</code></td>
+<td style="text-align:right">512</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left">hexadecimal digits</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>AllowBinarySpecifier</code></td>
+<td style="text-align:right">1024</td>
+<td style="text-align:left"><span class="off">off</span></td>
+<td style="text-align:left">binary digits</td>
+</tr>
+</tbody>
+</table>
+<p>The default style is 231: the three flags of the example, the two for white space, and <code>AllowThousands</code>. <code>NumberStyles.Float</code> is 167, the default without <code>AllowThousands</code>.</p>
 <h2 id="conclusion">Conclusion</h2>
 <p>In ten years Wolfram repaired underflow, but no route through the kernel parser reads all twenty strings correctly. The best ones, CSV and TSV import, still fail at overflow: they give <code>Missing</code>, which is not a form of infinity. Correct results come from outside the kernel: the C runtime of Windows, current .NET, or an exact routine such as <code>StringToDouble.wl</code>.</p>
 <h2 id="data-and-code">Data and code</h2>
@@ -482,6 +772,8 @@ Z   read@s
 <li><a href="run2026.wls">run2026.wls</a> and <a href="results2026.json">results2026.json</a>: the 2026 run and its results.</li>
 <li><a href="run2026_collection.wls">run2026_collection.wls</a> and <a href="collection.json">collection.json</a>: the larger collection against <code>StringToDouble.wl</code> and method Z.</li>
 <li><a href="run2026_dotnet.wls">run2026_dotnet.wls</a>: method E through NETLink on current .NET.</li>
+<li><a href="collection_dotnet.ps1">collection_dotnet.ps1</a>: the larger collection against <code>double.Parse</code>.</li>
+<li><a href="cultures_dotnet.ps1">cultures_dotnet.ps1</a>: the cultures of .NET, their text for infinity, their group marks, and the parse styles.</li>
 <li><a href="net.ps1">net.ps1</a>: the <code>double.Parse</code> test. PowerShell 7 runs it on .NET 10, Windows PowerShell on .NET Framework 4.8.</li>
 <li><a href="StringToDouble.wl">StringToDouble.wl</a>: the exact conversion routine.</li>
 </ul>
