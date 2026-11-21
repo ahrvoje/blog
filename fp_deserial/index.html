@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Floating Point deserialization · Enjoying the details</title>
-<meta name="description" content="A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. This post shows the 2016 re…">
+<meta name="description" content="A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote Str…">
 <meta name="author" content="Hrvoje Abraham">
 <link rel="preload" href="../assets/fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/style.css">
@@ -26,8 +26,8 @@
 <main class="post">
 <h1>Floating Point deserialization</h1>
 <p class="meta"><time datetime="2026-11-21">21 November 2026</time> · Hrvoje Abraham</p>
-<p>A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. This post shows the 2016 results and the same test repeated in 2026.</p>
-<p>Two independent routes read all test strings correctly from Wolfram: the C function <code>strtod</code> of the Windows C runtime, and <code>Double.Parse</code> of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.</p>
+<p>A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote <a href="https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/StringToDouble.wl">StringToDouble.wl</a>. It does the conversion in exact rational arithmetic, slow but correct, and it rejects text that is not a number. This post shows the 2016 results and the same test repeated in 2026.</p>
+<p>In 2026, two more routes read all test strings correctly from Wolfram, independent of my routine and of each other: the C function <code>strtod</code> of the Windows C runtime, and <code>Double.Parse</code> of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.</p>
 <p>The first route is <code>strtod</code>, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.</p>
 <pre><code><span class="v">c</span> = <span class="s">&quot;RawPointer&quot;</span>::[<span class="s">&quot;UnsignedInteger8&quot;</span>]; <span class="v">end</span> = <span class="f">RawMemoryAllocate</span>[<span class="v">c</span>];
 <span class="v">strtod</span> = <span class="f">ForeignFunctionLoad</span>[<span class="s">&quot;C:\\Windows\\System32\\ucrtbase.dll&quot;</span>,
@@ -266,7 +266,7 @@ K   <span class="f">First</span>@<span class="f">ImportString</span>[<span class
 </tbody>
 </table>
 <p>Every method fails. The plain text routes (B, H, I, J) fail only at the limits: underflow and overflow. Methods A and G also round ordinary values wrongly, such as <code>1.13e1</code>. The best one, the binary round trip K, still fails three subnormal tests.</p>
-<p>For this reason I wrote <a href="StringToDouble.wl">StringToDouble.wl</a> in 2016. It does the conversion in exact rational arithmetic: slow, but correct.</p>
+<p>This result is the reason for <code>StringToDouble.wl</code>.</p>
 <h2 id="2026">2026</h2>
 <p><em>Wolfram 15.0.1 on Windows, 21 November 2026. NETLink loads .NET Framework 4.8.</em></p>
 <table>

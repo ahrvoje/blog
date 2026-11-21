@@ -4,9 +4,9 @@ date: 2026-11-21
 author: Hrvoje Abraham
 ---
 
-A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. This post shows the 2016 results and the same test repeated in 2026.
+A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote [StringToDouble.wl](https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/StringToDouble.wl). It does the conversion in exact rational arithmetic, slow but correct, and it rejects text that is not a number. This post shows the 2016 results and the same test repeated in 2026.
 
-Two independent routes read all test strings correctly from Wolfram: the C function `strtod` of the Windows C runtime, and `Double.Parse` of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.
+In 2026, two more routes read all test strings correctly from Wolfram, independent of my routine and of each other: the C function `strtod` of the Windows C runtime, and `Double.Parse` of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.
 
 The first route is `strtod`, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.
 
@@ -101,7 +101,7 @@ K   First@ImportString[ExportString[N@First@ImportString[s, "List"], "Real64"], 
 
 Every method fails. The plain text routes (B, H, I, J) fail only at the limits: underflow and overflow. Methods A and G also round ordinary values wrongly, such as `1.13e1`. The best one, the binary round trip K, still fails three subnormal tests.
 
-For this reason I wrote [StringToDouble.wl](StringToDouble.wl) in 2016. It does the conversion in exact rational arithmetic: slow, but correct.
+This result is the reason for `StringToDouble.wl`.
 
 ## 2026
 
