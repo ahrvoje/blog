@@ -4,11 +4,11 @@ date: 2026-11-21
 author: Hrvoje Abraham
 ---
 
-A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote [StringToDouble.wl](https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/StringToDouble.wl). It does the conversion in exact rational arithmetic, slow but correct, and it rejects text that is not a number. This post shows the 2016 results and the same test repeated in 2026.
+To read a number from text looks like the easiest task in computing. Each decimal string has exactly one correct double, the nearest one, and most software still gets some of them wrong. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote [StringToDouble.wl](https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/StringToDouble.wl). It does the conversion in exact rational arithmetic, slow but correct, and it rejects text that is not a number. This post shows the 2016 results and the same test repeated in 2026.
 
-In 2026, two more routes read all test strings correctly from Wolfram, independent of my routine and of each other: the C function `strtod` of the Windows C runtime, and `Double.Parse` of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.
+In 2026, one more route reads all test strings correctly from Wolfram, independent of my routine: the C function `strtod` of the Universal C Runtime of Windows. Of the routes A to Y in this post, 22 fail on the first input below.
 
-The first route is `strtod`, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.
+The route is `strtod`, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.
 
 ```
 c = "RawPointer"::["UnsignedInteger8"]; end = RawMemoryAllocate[c];
@@ -19,21 +19,6 @@ read[s_] := Module[{p = RawMemoryExport[s], x}, x = strtod[p, end];
 read /@ {"2.4703282292062328e-324", "1.0e", "inf"}
 (* {5.*^-324, $Failed, Inf} *)
 ```
-
-The second route is current .NET through NETLink. Without the option, NETLink loads the old .NET Framework, which is not correct. `Needs` must stand on its own line, or the option has no effect. The invariant culture is necessary for `infinity`. The style permits a sign, a decimal point and an exponent, and nothing more; with the default style, .NET reads `1,5` as 15.
-
-```
-Needs["NETLink`"]
-InstallNET[UseNETFramework -> False];
-LoadNETType /@ {"System.Double", "System.Globalization.CultureInfo"};
-(* AllowLeadingSign + AllowDecimalPoint + AllowExponent *)
-parseStyle = 4 + 32 + 128;
-Double`Parse[#, parseStyle, CultureInfo`InvariantCulture] & /@
-  {"2.4703282292062328e-324", "infinity", "inf", "1,5"}
-(* {5.*^-324, Infinity, $Failed, $Failed} *)
-```
-
-.NET does not accept `inf`. IEEE 754-2008 (clause 5.12.1) names both `inf` and `infinity`, in any letter case, so .NET deviates from the standard at this point. Its numbers are correct.
 
 ## The test
 
@@ -229,7 +214,7 @@ Two results of .NET depend on the culture. The first is infinity. A culture has 
 | `INF` | 1 | `en-US-POSIX` |
 | `Infinity` | 1 | the invariant culture |
 
-So no culture accepts both `inf` and `infinity`.
+So no culture accepts both `inf` and `infinity`. IEEE 754-2008 (clause 5.12.1) names both, in any letter case, so .NET deviates from the standard at this point. Its numbers are correct.
 
 The second is the comma. .NET reads the comma in `1,5` as a digit group mark and returns 15. A culture rejects `1,5` only if its decimal mark is the point and its group mark is not the comma. Of the 465 cultures with a decimal point, 42 are of this kind:
 
@@ -252,11 +237,11 @@ A culture is not necessary for this. `double.Parse` also takes a parse style, an
 | `infinity` | infinity | infinity | infinity |
 | `nan` | NaN | NaN | NaN |
 
-The last style is `AllowLeadingSign`, `AllowDecimalPoint` and `AllowExponent`, the one of the example in the introduction. With it, .NET and `StringToDouble.wl` accept the same numbers of the collection. Only infinity and NaN stay different.
+The last style is `AllowLeadingSign`, `AllowDecimalPoint` and `AllowExponent`. With it, .NET and `StringToDouble.wl` accept the same numbers of the collection. Only infinity and NaN stay different.
 
-A parse style is a sum of flags. .NET 10 has eleven, and the style of the example sets three of them:
+A parse style is a sum of flags. .NET 10 has eleven, and this strict style sets three of them:
 
-| Flag | Value | Example style | Permits |
+| Flag | Value | Strict style | Permits |
 |:---|---:|:---|:---|
 | `AllowLeadingWhite` | 1 | <span class="off">off</span> | white space before the number |
 | `AllowTrailingWhite` | 2 | <span class="off">off</span> | white space after the number |
@@ -270,7 +255,7 @@ A parse style is a sum of flags. .NET 10 has eleven, and the style of the exampl
 | `AllowHexSpecifier` | 512 | <span class="off">off</span> | hexadecimal digits |
 | `AllowBinarySpecifier` | 1024 | <span class="off">off</span> | binary digits |
 
-The default style is 231: the three flags of the example, the two for white space, and `AllowThousands`. `NumberStyles.Float` is 167, the default without `AllowThousands`.
+The default style is 231: the three flags of the strict style, the two for white space, and `AllowThousands`. `NumberStyles.Float` is 167, the default without `AllowThousands`.
 
 ## Conclusion
 

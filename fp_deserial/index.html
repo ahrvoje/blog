@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Floating Point deserialization · Enjoying the details</title>
-<meta name="description" content="A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote Str…">
+<meta name="description" content="To read a number from text looks like the easiest task in computing. Each decimal string has exactly one correct double, the nearest one, and most software still gets some of them wrong. In 2016 I te…">
 <meta name="author" content="Hrvoje Abraham">
 <link rel="preload" href="../assets/fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/style.css">
@@ -26,9 +26,9 @@
 <main class="post">
 <h1>Floating Point deserialization</h1>
 <p class="meta"><time datetime="2026-11-21">21 November 2026</time> · Hrvoje Abraham</p>
-<p>A decimal string has one correct double: the nearest one, with ties to even. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote <a href="https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/StringToDouble.wl">StringToDouble.wl</a>. It does the conversion in exact rational arithmetic, slow but correct, and it rejects text that is not a number. This post shows the 2016 results and the same test repeated in 2026.</p>
-<p>In 2026, two more routes read all test strings correctly from Wolfram, independent of my routine and of each other: the C function <code>strtod</code> of the Windows C runtime, and <code>Double.Parse</code> of current .NET. Of the routes A to Y in this post, 22 fail on the first input below.</p>
-<p>The first route is <code>strtod</code>, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.</p>
+<p>To read a number from text looks like the easiest task in computing. Each decimal string has exactly one correct double, the nearest one, and most software still gets some of them wrong. In 2016 I tested how Mathematica reads such strings, and no method was correct for all inputs. For this reason I wrote <a href="https://github.com/ahrvoje/Resources/blob/main/numerics/strtod/StringToDouble.wl">StringToDouble.wl</a>. It does the conversion in exact rational arithmetic, slow but correct, and it rejects text that is not a number. This post shows the 2016 results and the same test repeated in 2026.</p>
+<p>In 2026, one more route reads all test strings correctly from Wolfram, independent of my routine: the C function <code>strtod</code> of the Universal C Runtime of Windows. Of the routes A to Y in this post, 22 fail on the first input below.</p>
+<p>The route is <code>strtod</code>, loaded into the kernel, with a check that it read the whole string. The second input is not a number, and the route rejects it. The third is the short form of infinity.</p>
 <pre><code><span class="v">c</span> = <span class="s">&quot;RawPointer&quot;</span>::[<span class="s">&quot;UnsignedInteger8&quot;</span>]; <span class="v">end</span> = <span class="f">RawMemoryAllocate</span>[<span class="v">c</span>];
 <span class="v">strtod</span> = <span class="f">ForeignFunctionLoad</span>[<span class="s">&quot;C:\\Windows\\System32\\ucrtbase.dll&quot;</span>,
   <span class="s">&quot;strtod&quot;</span>, {<span class="v">c</span>, <span class="s">&quot;RawPointer&quot;</span>::[<span class="v">c</span>]} -&gt; <span class="s">&quot;CDouble&quot;</span>];
@@ -37,17 +37,6 @@
 <span class="f">read</span> /@ {<span class="s">&quot;2.4703282292062328e-324&quot;</span>, <span class="s">&quot;1.0e&quot;</span>, <span class="s">&quot;inf&quot;</span>}
 <span class="c">(* {5.*^-324, $Failed, Inf} *)</span>
 </code></pre>
-<p>The second route is current .NET through NETLink. Without the option, NETLink loads the old .NET Framework, which is not correct. <code>Needs</code> must stand on its own line, or the option has no effect. The invariant culture is necessary for <code>infinity</code>. The style permits a sign, a decimal point and an exponent, and nothing more; with the default style, .NET reads <code>1,5</code> as 15.</p>
-<pre><code><span class="f">Needs</span>[<span class="s">&quot;NETLink`&quot;</span>]
-<span class="f">InstallNET</span>[<span class="f">UseNETFramework</span> -&gt; <span class="f">False</span>];
-<span class="f">LoadNETType</span> /@ {<span class="s">&quot;System.Double&quot;</span>, <span class="s">&quot;System.Globalization.CultureInfo&quot;</span>};
-<span class="c">(* AllowLeadingSign + AllowDecimalPoint + AllowExponent *)</span>
-<span class="v">parseStyle</span> = <span class="n">4</span> + <span class="n">32</span> + <span class="n">128</span>;
-<span class="f">Double`Parse</span>[#, <span class="v">parseStyle</span>, <span class="f">CultureInfo`InvariantCulture</span>] &amp; /@
-  {<span class="s">&quot;2.4703282292062328e-324&quot;</span>, <span class="s">&quot;infinity&quot;</span>, <span class="s">&quot;inf&quot;</span>, <span class="s">&quot;1,5&quot;</span>}
-<span class="c">(* {5.*^-324, Infinity, $Failed, $Failed} *)</span>
-</code></pre>
-<p>.NET does not accept <code>inf</code>. IEEE 754-2008 (clause 5.12.1) names both <code>inf</code> and <code>infinity</code>, in any letter case, so .NET deviates from the standard at this point. Its numbers are correct.</p>
 <h2 id="the-test">The test</h2>
 <p>Twenty strings from the hard regions: underflow, subnormal numbers, halfway cases and overflow. A method passes a test when its result, taken exactly, is equal to the correct double. Where infinity is correct, each form of infinity passes. Two forms occurred: the symbol <code>Infinity</code>, and the IEEE infinity as a machine number, which Wolfram prints as <code>Inf</code>.</p>
 <table>
@@ -593,7 +582,7 @@ Z   <span class="f">read</span>@<span class="v">s</span>
 </tr>
 </tbody>
 </table>
-<p>So no culture accepts both <code>inf</code> and <code>infinity</code>.</p>
+<p>So no culture accepts both <code>inf</code> and <code>infinity</code>. IEEE 754-2008 (clause 5.12.1) names both, in any letter case, so .NET deviates from the standard at this point. Its numbers are correct.</p>
 <p>The second is the comma. .NET reads the comma in <code>1,5</code> as a digit group mark and returns 15. A culture rejects <code>1,5</code> only if its decimal mark is the point and its group mark is not the comma. Of the 465 cultures with a decimal point, 42 are of this kind:</p>
 <table>
 <thead>
@@ -682,14 +671,14 @@ Z   <span class="f">read</span>@<span class="v">s</span>
 </tr>
 </tbody>
 </table>
-<p>The last style is <code>AllowLeadingSign</code>, <code>AllowDecimalPoint</code> and <code>AllowExponent</code>, the one of the example in the introduction. With it, .NET and <code>StringToDouble.wl</code> accept the same numbers of the collection. Only infinity and NaN stay different.</p>
-<p>A parse style is a sum of flags. .NET 10 has eleven, and the style of the example sets three of them:</p>
+<p>The last style is <code>AllowLeadingSign</code>, <code>AllowDecimalPoint</code> and <code>AllowExponent</code>. With it, .NET and <code>StringToDouble.wl</code> accept the same numbers of the collection. Only infinity and NaN stay different.</p>
+<p>A parse style is a sum of flags. .NET 10 has eleven, and this strict style sets three of them:</p>
 <table>
 <thead>
 <tr>
 <th style="text-align:left">Flag</th>
 <th style="text-align:right">Value</th>
-<th style="text-align:left">Example style</th>
+<th style="text-align:left">Strict style</th>
 <th style="text-align:left">Permits</th>
 </tr>
 </thead>
@@ -762,7 +751,7 @@ Z   <span class="f">read</span>@<span class="v">s</span>
 </tr>
 </tbody>
 </table>
-<p>The default style is 231: the three flags of the example, the two for white space, and <code>AllowThousands</code>. <code>NumberStyles.Float</code> is 167, the default without <code>AllowThousands</code>.</p>
+<p>The default style is 231: the three flags of the strict style, the two for white space, and <code>AllowThousands</code>. <code>NumberStyles.Float</code> is 167, the default without <code>AllowThousands</code>.</p>
 <h2 id="conclusion">Conclusion</h2>
 <p>In ten years Wolfram repaired underflow, but no route through the kernel parser reads all twenty strings correctly. The best ones, CSV and TSV import, still fail at overflow: they give <code>Missing</code>, which is not a form of infinity. Correct results come from outside the kernel: the C runtime of Windows, current .NET, or an exact routine such as <code>StringToDouble.wl</code>.</p>
 <h2 id="data-and-code">Data and code</h2>
