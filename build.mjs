@@ -216,7 +216,9 @@ const posts = fs
 
 for (const post of posts) {
   const author = post.author ?? AUTHOR;
-  const byline = post.email ? `<a href="mailto:${esc(post.email)}">${esc(author)}</a>` : esc(author);
+  const name = post.email ? `<a href="mailto:${esc(post.email)}">${esc(author)}</a>` : esc(author);
+  // Optional front matter "doi": shown after the author, as a link to doi.org.
+  const byline = post.doi ? `${name} · <a href="https://doi.org/${esc(post.doi)}">doi:${esc(post.doi)}</a>` : name;
   const body = `<header class="site"><a href="../"><img src="../favicon-32x32.png" alt="" width="16" height="16">${esc(SITE)}</a></header>
 <main class="post">
 <h1>${esc(post.title)}</h1>

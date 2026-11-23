@@ -2,6 +2,7 @@
 title: The capacitance of a cube
 date: 2026-11-22
 author: Hrvoje Abraham, Fable 5.2
+doi: 10.5281/zenodo.24451074
 ---
 
 A metal sphere of radius $r$ has the capacitance $4\pi\varepsilon_0 r$. For a metal cube no formula is known, only numbers. This post has two results.
