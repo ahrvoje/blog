@@ -2,7 +2,7 @@
 title: The capacitance of a cube
 date: 2026-11-22
 author: Hrvoje Abraham, Fable 5.2
-doi: 10.5281/zenodo.24485184
+doi: 10.5281/zenodo.24485434
 ---
 
 A metal sphere of radius $r$ has the capacitance $4\pi\varepsilon_0 r$. For a metal cube no formula is known, only numbers. This post has two series for that number, and two solvers for the second series.
@@ -756,6 +756,8 @@ The number $d^{\mathsf T}Hd$ is an energy and $r^{\mathsf T}z$ is a sum of squar
 
 *The error falls at least geometrically.* The energy of the error, which is the error of $\kappa$, is not more than $4\,\big((\sqrt c - 1)/(\sqrt c + 1)\big)^{2k}$ times its first value, where $c$ is the condition number of the scaled matrix.
 
+These properties are known, also in this form. The value $m^{\mathsf T}H^{-1}m$ is a quadratic form of the inverse matrix. Golub and Meurant, [*Matrices, moments and quadrature II; how to compute the norm of the error in iterative methods*](https://doi.org/10.1007/BF02510247) (1997) and the book *Matrices, Moments and Quadrature with Applications* (2010), show that the conjugate gradient steps are a Gauss quadrature rule for such a form, and that this rule gives a lower bound. That is the series of gains above. They also give an upper bound, from a Gauss–Radau rule and a lower bound of the smallest eigenvalue. Here it would enclose the error of the solver from the two sides. It would be an upper bound of $\kappa_M$, the value of the system, and not of $\kappa$. I did not use it.
+
 The condition number is small and grows slowly. I measured it from the step sizes, and for the two smallest sizes also from the full matrix, with the same result:
 
 | Layers | Top degree | Edge functions $N$ | Unknowns | Condition number | Steps to $10^{-13}$ |
@@ -925,9 +927,9 @@ Is this new? The idea is not. It is the Rayleigh–Ritz method: restrict a varia
 - The energy of two overlapping shells is, up to a factor, the trace of the Rotne–Prager–Yamakawa tensor of hydrodynamics (Zuk, Wajnryb, Mizerski and Szymczak, 2014). There the same sum over the inverse matrix gives the hydrodynamic radius of a chain of beads.
 - $G = LL^{\mathsf T}$ and $\sum z_j^2$ are Cholesky, Gram–Schmidt and Parseval.
 - Patches graded in a fixed ratio toward the edges, with polynomials on them, are the *hp* boundary element method, which is known to converge exponentially for such densities. The references are in the section *Why it is fast*.
-- The conjugate gradient method is from Hestenes and Stiefel (1952). A solver that uses only products with the matrix is the usual way to solve a large boundary element system.
+- The conjugate gradient method is from Hestenes and Stiefel (1952). A solver that uses only products with the matrix is the usual way to solve a large boundary element system. That its steps give lower bounds of $m^{\mathsf T}H^{-1}m$, and how to get upper bounds, is in Golub and Meurant (1997, 2010).
 - The sum of Gaussians for $1/r$ is a standard tool as well: sinc quadrature (Stenger), and Beylkin and Monzón, *Approximation by exponential sums revisited* (2010).
 
-What can be particular to this post is the combination: the nested shell family in this order as an explicit series, the patch system with all integrals reduced to $\operatorname{erf}$, and the conjugate gradient steps as a series of positive gains of the bound. I did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and I do not claim that anything here is new.
+What can be particular to this post is the combination: the nested shell family in this order as an explicit series, and the patch system with all integrals reduced to $\operatorname{erf}$. I did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and I do not claim that anything here is new.
 
 The lower bounds are exact statements about exact arithmetic. That the bounds converge to $\kappa$, and how many digits are final, rests here on the numbers: on the agreement of runs with different meshes, degrees and parameters, on the agreement of the two solvers, and on the agreement with the 13 digits of Helsing and Perfekt, [*On the polarizability and capacitance of the cube*](https://arxiv.org/abs/1203.5997) (2013), $0.66067815409957$.

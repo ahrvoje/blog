@@ -11,7 +11,7 @@
 \newcommand{\one}{\mathbf 1}
 \newcommand{\T}{\mathsf T}
 \newcommand{\erf}{\operatorname{erf}}
-\newcommand{\doiline}{DOI: 10.5281/zenodo.24485184}
+\newcommand{\doiline}{DOI: 10.5281/zenodo.24485434}
 
 \markboth{}{}
 
@@ -19,10 +19,9 @@
 
 \title{The Capacitance of a Cube}
 
-\author{Hrvoje~Abraham and Fable~5.2%
-\thanks{Version 3, dated November 24, 2026. Version 1 is dated November 23, 2026. New in version 2: the sections on the convergence of the patch series, on the conjugate gradient method and on more digits, and two more digits of the result. Version 3 corrects statements that version 2 kept from version 1: the abstract and the introduction name both solvers, and the rows of Table~\ref{tab:patches} are not lower bounds beyond the 18th digit.}%
-\thanks{H. Abraham, e-mail: ahrvoje@gmail.com. Fable 5.2 is a language model of Anthropic.}%
-\thanks{The programs are at \protect\url{https://github.com/ahrvoje/blog}, folder \texttt{cube}. \doiline.}}
+\author{Hrvoje~Abraham (\texttt{ahrvoje@gmail.com}) and Fable~5.2\\[3pt]
+November 24, 2026\\[3pt]
+\doiline}
 
 \maketitle
 
@@ -458,6 +457,8 @@ The number $d^{\T}Hd$ is an energy and $r^{\T}z$ is a sum of squares, so the gai
 \end{equation}
 times its first value, where $c$ is the condition number of the scaled matrix.
 
+These properties are known, also in this form. The value $m^{\T}H^{-1}m$ is a quadratic form of the inverse matrix. Golub and Meurant \cite{golub,golubbook} show that the conjugate gradient steps are a Gauss quadrature rule for such a form, and that this rule gives a lower bound. That is the series of gains \eqref{eq:gain}. They also give an upper bound, from a Gauss--Radau rule and a lower bound of the smallest eigenvalue. Here it would enclose the error of the solver from the two sides. It would be an upper bound of $\kappa_M$, the value of the system, and not of $\kappa$. It was not used.
+
 The condition number is small and grows slowly (Table~\ref{tab:condition}). It was measured from the step sizes, and for the two smallest sizes also from the full matrix, with the same result. It is about 10 to 15 times $N$, so the steps grow like $\sqrt N$, which is $M^{1/4}$. The diagonal is the only preconditioner that is necessary.
 
 \begin{table}[!t]
@@ -597,16 +598,16 @@ These numerical parameters could spoil the last digits.
 The value agrees with the best published one, $0.66067815409957$ \cite{helsing}, in all its digits.
 
 \section{The Programs}
-The three programs are plain Julia with threads, without packages. The program \texttt{shells.jl} makes Tables~\ref{tab:cumulative} and \ref{tab:boundary}. The matrix is assembled over the orbits of the 48 symmetries. The values $Q_n$ are refined to 28 digits with double-double residuals, so that the extrapolation does not amplify rounding errors. The program \texttt{patches.jl} makes Table~\ref{tab:patches}. The integrals in one variable cancel strongly and use 1024-bit numbers. The matrix $H$ and its Cholesky factor are in double precision, and the solution is refined with double-double residuals. The program \texttt{cg.jl} makes Table~\ref{tab:runs}. It includes \texttt{patches.jl} for the mesh and the tables, and it adds the products without the matrix, the steps in double precision and the residual in double-double.
+The three programs are plain Julia with threads, without packages. They are at \url{https://github.com/ahrvoje/blog/tree/main/cube}, and with this paper in its record at the DOI above. The program \texttt{shells.jl} makes Tables~\ref{tab:cumulative} and \ref{tab:boundary}. The matrix is assembled over the orbits of the 48 symmetries. The values $Q_n$ are refined to 28 digits with double-double residuals, so that the extrapolation does not amplify rounding errors. The program \texttt{patches.jl} makes Table~\ref{tab:patches}. The integrals in one variable cancel strongly and use 1024-bit numbers. The matrix $H$ and its Cholesky factor are in double precision, and the solution is refined with double-double residuals. The program \texttt{cg.jl} makes Table~\ref{tab:runs}. It includes \texttt{patches.jl} for the mesh and the tables, and it adds the products without the matrix, the steps in double precision and the residual in double-double.
 
 On a 32-thread desktop (Core i9-13900K, 64~GB) the shell tables take about 2 minutes, most of it for $n = 512$, and the first six rows of Table~\ref{tab:patches} take 8 minutes. The last row needs 19 minutes and about 30~GB. Run A of Table~\ref{tab:runs} takes 16 minutes with Julia 1.13.
 
 \section{Prior Art}
 Is this new? The idea is not. It is the Rayleigh--Ritz method: restrict a variational problem to a finite family and solve a linear system. Each part has a name and a history.
 
-The energy principle \eqref{eq:principle} is due to Gauss and Thomson; for the capacity it is the base of \cite{polya}. A finite family with the matrix of energies is Maxwell's method of subareas \cite{maxwell}, in electrical engineering the method of moments \cite{harrington}, and with the energy as the scalar product the Galerkin boundary element method. The formula \eqref{eq:bound} with its error identity is in \cite{betcke}. The energy \eqref{eq:shell} of two overlapping shells is, up to a factor, the trace of the Rotne--Prager--Yamakawa tensor of hydrodynamics \cite{zuk}; there the same sum over the inverse matrix gives the hydrodynamic radius of a chain of beads. The series \eqref{eq:series} is Cholesky, Gram--Schmidt and Parseval. Patches graded in a fixed ratio toward the edges, with polynomials on them, are the $hp$ boundary element method \cite{gui,sauter}, which is known to converge exponentially for such densities \cite{babuska,heuer}. The conjugate gradient method is from \cite{hestenes}, and a solver that uses only products with the matrix is the usual way to solve a large boundary element system \cite{sauter}. The sum of Gaussians \eqref{eq:gauss} is a standard tool as well \cite{stenger,beylkin}.
+The energy principle \eqref{eq:principle} is due to Gauss and Thomson; for the capacity it is the base of \cite{polya}. A finite family with the matrix of energies is Maxwell's method of subareas \cite{maxwell}, in electrical engineering the method of moments \cite{harrington}, and with the energy as the scalar product the Galerkin boundary element method. The formula \eqref{eq:bound} with its error identity is in \cite{betcke}. The energy \eqref{eq:shell} of two overlapping shells is, up to a factor, the trace of the Rotne--Prager--Yamakawa tensor of hydrodynamics \cite{zuk}; there the same sum over the inverse matrix gives the hydrodynamic radius of a chain of beads. The series \eqref{eq:series} is Cholesky, Gram--Schmidt and Parseval. Patches graded in a fixed ratio toward the edges, with polynomials on them, are the $hp$ boundary element method \cite{gui,sauter}, which is known to converge exponentially for such densities \cite{babuska,heuer}. The conjugate gradient method is from \cite{hestenes}, and a solver that uses only products with the matrix is the usual way to solve a large boundary element system \cite{sauter}. That its steps give lower bounds of $m^{\T}H^{-1}m$, and how to get upper bounds, is in \cite{golub,golubbook}. The sum of Gaussians \eqref{eq:gauss} is a standard tool as well \cite{stenger,beylkin}.
 
-What can be particular to this paper is the combination: the nested shell family in this order as an explicit series, the patch system with all integrals reduced to $\erf$, and the conjugate gradient steps as a series of positive gains of the bound. We did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and we do not claim that anything here is new.
+What can be particular to this paper is the combination: the nested shell family in this order as an explicit series, and the patch system with all integrals reduced to $\erf$. We did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and we do not claim that anything here is new.
 
 The lower bounds are exact statements about exact arithmetic. That the bounds converge to $\kappa$, and how many digits are final, rests here on the numbers: on the agreement of runs with different meshes, degrees and parameters, on the agreement of the two solvers, and on the agreement with the 13 digits of \cite{helsing}.
 
@@ -628,6 +629,8 @@ The lower bounds are exact statements about exact arithmetic. That the bounds co
 \bibitem{sauter} S. A. Sauter and C. Schwab, \emph{Boundary Element Methods}. Berlin, Germany: Springer, 2011.
 \bibitem{hestenes} M. R. Hestenes and E. Stiefel, ``Methods of conjugate gradients for solving linear systems,'' \emph{J. Res. Nat. Bur. Standards}, vol.~49, no.~6, pp.~409--436, 1952.
 \bibitem{strakos} Z. Strako\v{s} and P. Tich\'y, ``On error estimation in the conjugate gradient method and why it works in finite precision computations,'' \emph{Electron. Trans. Numer. Anal.}, vol.~13, pp.~56--80, 2002.
+\bibitem{golub} G. H. Golub and G. Meurant, ``Matrices, moments and quadrature II; how to compute the norm of the error in iterative methods,'' \emph{BIT}, vol.~37, no.~3, pp.~687--705, 1997.
+\bibitem{golubbook} G. H. Golub and G. Meurant, \emph{Matrices, Moments and Quadrature with Applications}. Princeton, NJ, USA: Princeton Univ. Press, 2010.
 \end{thebibliography}
 
 \end{document}
