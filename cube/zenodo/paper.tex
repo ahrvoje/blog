@@ -3,6 +3,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb}
 \usepackage{tikz}
+\usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{url}
 \usepackage{cite}
@@ -10,7 +11,7 @@
 \newcommand{\one}{\mathbf 1}
 \newcommand{\T}{\mathsf T}
 \newcommand{\erf}{\operatorname{erf}}
-\newcommand{\doiline}{DOI: 10.5281/zenodo.24451074}
+\newcommand{\doiline}{DOI: 10.5281/zenodo.24485184}
 
 \markboth{}{}
 
@@ -19,29 +20,32 @@
 \title{The Capacitance of a Cube}
 
 \author{Hrvoje~Abraham and Fable~5.2%
-\thanks{Manuscript dated November 23, 2026.}%
+\thanks{Version 3, dated November 24, 2026. Version 1 is dated November 23, 2026. New in version 2: the sections on the convergence of the patch series, on the conjugate gradient method and on more digits, and two more digits of the result. Version 3 corrects statements that version 2 kept from version 1: the abstract and the introduction name both solvers, and the rows of Table~\ref{tab:patches} are not lower bounds beyond the 18th digit.}%
 \thanks{H. Abraham, e-mail: ahrvoje@gmail.com. Fable 5.2 is a language model of Anthropic.}%
 \thanks{The programs are at \protect\url{https://github.com/ahrvoje/blog}, folder \texttt{cube}. \doiline.}}
 
 \maketitle
 
 \begin{abstract}
-The electrostatic capacitance of a metal cube has no known closed form. This paper gives two results. The first is an infinite series of positive terms for the capacitance, made of uniformly charged spherical shells. Each term is an algebraic number that follows from a closed formula and a recursion, with no integral. The series is exact, but too slow to give many decimals. The second is a fast series of the same structure, made of polynomial charge patches on the faces, graded toward the edges. All its integrals reduce to the error function. It gives the capacitance of a cube of side $s$ as $4\pi\varepsilon_0 s\kappa$ with $\kappa = 0.660\,678\,154\,099\,568\,000 \pm 10^{-18}$. The error is an estimate from the observed convergence, not a proved bound.
+The electrostatic capacitance of a metal cube has no known closed form. This paper gives two series for the capacitance, and two solvers for the second series. The first is an infinite series of positive terms for the capacitance, made of uniformly charged spherical shells. Each term is an algebraic number that follows from a closed formula and a recursion, with no integral. The series is exact, but too slow to give many decimals. The second is a fast series of the same structure, made of polynomial charge patches on the faces, graded toward the edges. All its integrals reduce to the error function. The fast series is the Galerkin boundary element method in its $hp$ form, and the paper gives the argument for its exponential convergence. The first solver is a Cholesky factorization of the matrix of the system, and it gives 18 digits. The second is a conjugate gradient solver that does not store the matrix. It removes the memory limit of the factorization. Each of its steps increases the lower bound, and the gains of the steps give the error of each step. The result is the capacitance of a cube of side $s$ as $4\pi\varepsilon_0 s\kappa$ with $\kappa = 0.660\,678\,154\,099\,567\,999\,16 \pm 10^{-20}$. The error is an estimate from the observed convergence, not a proved bound. Scaling laws give the cost of more digits.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Capacitance, cube, variational method, method of moments, boundary elements, Cholesky factorization, series acceleration.
+Capacitance, cube, variational method, method of moments, boundary elements, $hp$ version, Cholesky factorization, conjugate gradient method, series acceleration.
 \end{IEEEkeywords}
 
 \section{Introduction}
 \IEEEPARstart{A}{metal} sphere of radius $r$ has the capacitance $4\pi\varepsilon_0 r$. For a metal cube no formula is known, only numbers. The best published value has 13 digits \cite{helsing}.
 
-This paper has two results. The first is a series of positive terms for that number, made of charged spherical shells. Each term is an algebraic number from a closed formula, with no integral. The series is exact, but too slow to give many decimals. The second is a fast series of the same structure, made of charged patches on the faces. It gives
-\begin{equation}
-C_{\text{cube}} = 4\pi\varepsilon_0\, s\,\kappa, \quad \kappa = 0.660\,678\,154\,099\,568\,000 \pm 10^{-18}
+This paper has two series for that number, and two solvers for the second series. The first series has positive terms and is made of charged spherical shells. Each term is an algebraic number from a closed formula, with no integral. The series is exact, but too slow to give many decimals. The second series is fast. It has the same structure and is made of charged patches on the faces. The paper explains why it is fast: it is the Galerkin boundary element method in its $hp$ form, with errors that are nearly equal on all patches. The first solver stores the matrix of the patch system and factors it, the Cholesky method. It gives 18 digits. The second solver does not store the matrix, the conjugate gradient method. Each of its steps increases the lower bound, and it gives two more digits:
+\begin{align}
+C_{\text{cube}} &= 4\pi\varepsilon_0\, s\,\kappa, \nonumber\\
+\kappa &= 0.660\,678\,154\,099\,567\,999\,16 \pm 10^{-20}
 \label{eq:result}
-\end{equation}
+\end{align}
 for a cube of side $s$. The error is an estimate from the convergence, not a proved bound.
+
+The paper ends with an estimate of the cost of more digits.
 
 \section{The Problem}
 Put the unit cube $K$ at potential 1, in units where the potential of a point charge $q$ at distance $r$ is $q/r$. The charge moves to the surface and settles in an equilibrium distribution $\mu$. Its total is the number $\kappa$. In these units a sphere of radius $r$ holds the charge $r$, so $\kappa$ is the radius of the sphere that is equivalent to the cube.
@@ -240,7 +244,7 @@ Integration by parts moves all derivatives to the polynomials, and what stays ar
 The full construction has four steps. All formulas are explicit.
 
 \subsection{The Gaussians}
-Take $t_k = e^{0.12\,k}$ and $w_k = \frac{2}{\sqrt\pi}\, 0.12\, t_k$ for $k = -350, \dots, 366$.
+Take $t_k = e^{0.12\,k}$ and $w_k = \frac{2}{\sqrt\pi}\, 0.12\, t_k$ for $k = -350, \dots, 366$. These are the values of \texttt{patches.jl}. They are sufficient for 18 digits. The conjugate gradient runs use a smaller step and a wider range.
 
 \subsection{One Edge}
 Choose functions $\varphi_1, \dots, \varphi_N$ of one variable on the edge $[-\frac12, \frac12]$. Here each is a Legendre polynomial on one interval of the mesh, and zero outside it. With the mesh nodes $x_0 < x_1 < \dots$ and the interval $[x_i, x_{i+1}]$ of length $h_i$, the function of degree $n$ on this interval is
@@ -302,8 +306,8 @@ The solution has three stages.
 
 The residual does not need the matrix $H$ in high precision. With the tables as matrices, the product $HC$ for one Gaussian is $(1 + e^{-t^2})\,A C A + 2\,(A C s)\,s^{\T} + 2\,s\,(A C s)^{\T}$, three small matrix products. As with the shells, the result is a lower bound and a sum of positive terms, one term for each trial function.
 
-\section{Results}
-Table~\ref{tab:patches} gives the convergence. Each row is a lower bound. The errors are differences from the last row, and they fall by a factor of 100 to 2000 from row to row. Sixteen digits need about 17\,000 unknowns. The shells gave 3 digits with 1.5 million.
+\section{Convergence of the Patch Series}
+Table~\ref{tab:patches} gives the convergence. Each row is a lower bound for the system with this Gaussian sum. The sum is a little short, and this makes the values about $3\cdot10^{-19}$ too high, as the section on the conjugate gradient method shows. So the digits beyond the 18th are not lower bounds of $\kappa$. The errors are differences from the last row, and they fall by a factor of 100 to 2000 from row to row. Sixteen digits need about 17\,000 unknowns. The shells gave 3 digits with 1.5 million.
 
 \begin{table}[!t]
 \caption{Patches: Layers, Top Degree, Unknowns, Lower Bound, Error and Time}
@@ -326,31 +330,287 @@ $I$ & Deg. & Unkn. & $\kappa_N$ & $\kappa-\kappa_N$ & Time, s\\
 \end{tabular}
 \end{table}
 
-The result is \eqref{eq:result}. The best run gives $0.660\,678\,154\,099\,567\,999\,4$, a lower bound. The last two runs differ by $3.5\cdot10^{-19}$, and the step before that was $4\cdot10^{-17}$, so the next step is far below $10^{-19}$. The numerical parameters add at most $3\cdot10^{-19}$ each. From these we assume an error of $10^{-18}$. It is an estimate, not a proved bound. The nearest double is 0.660678154099568.
+\section{Why the Patch Series Is Fast}
+\subsection{The Name of the Method}
+The patch method is the Galerkin boundary element method in its $hp$ form. Each part of the name says one thing.
 
-Three numerical parameters could spoil the last digits, and each of them was varied.
+\emph{Boundary element.} The unknown is the charge on the surface only, and the surface is divided into elements, here the patches. The equation is an integral equation: the potential of the surface charge is 1 on the surface. A finite element method has its unknowns in the full volume and solves a differential equation there. Its matrix is sparse, because only adjacent elements interact. Here the matrix is full, but the unknowns cover only a surface.
+
+\emph{Galerkin.} The equation is tested with the same functions that build the solution: one trial function, one equation. This is the system $HC = m$. It makes $H$ symmetric, and it gives the lower bound.
+
+\emph{$h$ and $p$.} The letter $h$ is the size of the elements and $p$ is the degree of the polynomials. The $h$ version makes the elements smaller at a fixed degree. The $p$ version increases the degree on a fixed mesh. The $hp$ version does both: small elements of low degree where the solution is singular, large elements of high degree where it is smooth.
+
+The Galerkin method with finite elements on a surface goes back to N\'ed\'elec and Planchard \cite{nedelec} and to Hsiao and Wendland \cite{hsiao}. Uniform patches on the cube are older: Reitan and Higgins \cite{reitan} divided each face into 36 squares and found $0.6555$. The $hp$ idea is from Gui and Babu\v{s}ka \cite{gui}. Its exponential convergence for boundary elements was proved for polygons \cite{babuska} and for surfaces in space \cite{heuer}. A modern textbook is \cite{sauter}.
+
+\subsection{The Density on One Patch}
+A patch is the product of the interval $i$ in $x$ and the interval $j$ in $y$. On it the density is
+\begin{equation}
+\sigma(x, y) = \frac{1}{h_i h_j} \sum_{n=0}^{p_i} \sum_{m=0}^{p_j} C_{(i,n)(j,m)}\, P_n(\xi)\, P_m(\eta),
+\end{equation}
+where $\xi$ and $\eta$ are $x$ and $y$ stretched to $[-1, 1]$ on the patch. The products $P_n(\xi) P_m(\eta)$ are fixed shapes, and each has its own coefficient. Their sum is one polynomial, of degree $p_i$ in $x$ and $p_j$ in $y$. A patch of degree 10 in both directions has $11 \times 11 = 121$ products. Only the product $n = m = 0$ has a total charge, and its coefficient is the charge of the patch. All the others have the total charge 0 and only move charge inside the patch. Nothing joins the polynomials of two adjacent patches: the density can jump at a patch border, and it can be negative at a point. The lower bound \eqref{eq:principle} is true for each trial charge, so neither does harm.
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\node[anchor=south west, inner sep=0] at (0,0.62) {\includegraphics[width=4.1cm]{density_face.png}};
+\node[anchor=south west, inner sep=0] at (4.5,0.62) {\includegraphics[width=4.1cm]{density_quarter.png}};
+\node[anchor=south west, inner sep=0] at (0,0.4) {\includegraphics[width=4.1cm,height=0.14cm]{density_face_scale.png}};
+\node[anchor=south west, inner sep=0] at (4.5,0.4) {\includegraphics[width=4.1cm,height=0.14cm]{density_quarter_scale.png}};
+\foreach \x/\l in {0.125/0.1, 0.364/0.3, 0.625/1, 0.864/3}
+  \node[font=\scriptsize, below, inner sep=1.5pt] at ({4.1*\x},0.4) {\l};
+\foreach \d/\l in {-1/10^{-1}, 0/1, 1/10, 2/10^{2}, 3/10^{3}, 4/10^{4}, 5/10^{5}, 6/10^{6}}
+  \node[font=\scriptsize, below, inner sep=1.5pt] at ({4.5+4.1*(\d+1.25)/7.5},0.4) {$\l$};
+\node[font=\footnotesize] at (2.05,-0.22) {full face, true geometry};
+\node[font=\footnotesize] at (6.55,-0.22) {one quarter, equal patches};
+\end{tikzpicture}
+\caption{The computed density of the run with 16 layers and top degree 6, on a logarithmic colour scale. Each band is a factor of 1.12, so the bands are level lines. White lines are patch borders. Left: the full face. Only four layers are wide enough to see. Right: one quarter of the face with all patches drawn at equal size, the face centre at the bottom left and the cube corner at the top right. In this run each layer is 7.4 times thinner than the layer before it.}
+\label{fig:density}
+\end{figure}
+
+Fig.~\ref{fig:density} shows the result. The density is $0.068$ in the centre of the face, and its mean over the corner patch is $10^6$. The bands bend inside the patches: the density is not uniform there. They go across the patch borders almost without a step, so the density is almost continuous, but only because that is the best fit. In the last two layers the degree is 0, and the bands are straight. The density is positive at all the 65\,536 points that were tested. The white cross in the centre is the mirror: the mesh is made for one half of the edge, so the middle of the face is four patches, not one.
+
+\subsection{Equal Errors, Not Equal Charges}
+The large patches hold much more charge than the small ones. This is not a bad distribution of the work. The error of a patch does not come from its charge. It comes from the misfit of the polynomial, and the misfit depends on one number: the size of the patch divided by its distance to the edge. On a mesh with a fixed ratio $q$ between the layers this number is the same for all patches. The best polynomial of degree $p$ for the power $d^{-1/3}$ on such a patch has a relative error near $\rho^{-p}$, with
+\begin{equation}
+\rho = \frac{1 + \sqrt q}{1 - \sqrt q},
+\label{eq:rho}
+\end{equation}
+which is 3 for $q = \frac14$, the ratio of the runs with 23 layers. Each degree thus divides the misfit by 3, on a large patch and on a small one.
+
+The share of a patch in the error of $\kappa$ is an energy: about the square of the relative misfit times the square of the charge of the patch. With one degree more the first factor falls 9 times. One layer nearer to the edge, the charge falls by $q^{2/3}$ and its square by $q^{4/3}$, which is $0.16$. The two effects balance when the degree falls by about $0.8$ for each layer toward the edge. The runs with 23 layers use the slope $0.75$. This is the reason for the falling degree: the small patches need less, because they hold less. The shares are then nearly equal, and few unknowns are wasted.
+
+A model with one edge shows the size of the effect. Take the density $d^{-1/3}$, fit it on each interval, and take the interval length times the integral of the squared misfit as the error of the interval. Table~\ref{tab:model} compares three meshes with 182 unknowns each, the first with the 23 layers and the degrees of the runs. On the first mesh the charge of an interval changes by 8 orders of magnitude from the centre to the edge, and the error stays between $10^{-20}$ and $10^{-15}$. On the meshes of equal charge it is the opposite, and the interval at the edge holds almost all of the error. The reason is the count: $n$ intervals of equal charge have their nodes at $d \propto (i/n)^{3/2}$, so the smallest is $n^{-3/2}$, and $10^{-13}$ would need some $10^{8}$ intervals. Equal charge is a good rule for a fixed low degree. With polynomials it is worse than no rule.
+
+\begin{table}[!t]
+\caption{A Model With One Edge: Three Meshes With 182 Unknowns}
+\label{tab:model}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrll}
+\toprule
+Mesh & Intervals & Smallest & Sum of errors\\
+\midrule
+Fixed ratio, degrees 10 to 0 & 23 & $5\cdot10^{-14}$ & $6\cdot10^{-15}$\\
+Equal charge, degrees 10 to 0 & 23 & $5\cdot10^{-3}$ & $6\cdot10^{-4}$\\
+Equal charge, degree 0 & 182 & $2\cdot10^{-4}$ & $1\cdot10^{-5}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Uniform Patches}
+Can the polynomials be left out? The program can do it: degree 0 on all patches, and more layers on the same $\tanh$ mesh (Table~\ref{tab:uniform}). Four times more unknowns divide the error by about $8.5$. This is a power law, near $M^{-1.6}$ for $M$ unknowns, and sixteen digits would need about $10^{10}$ unknowns. The error of a uniform patch is in proportion to its size divided by its distance to the edge, and only a smaller step from layer to layer can decrease it. The table does this: the smallest patch is fixed, so more layers make all steps smaller. More layers at a fixed step would only extend the mesh toward the edge, and would not help. With the polynomials, 903 unknowns give $1.5\cdot10^{-7}$.
+
+\begin{table}[!t]
+\caption{Uniform Patches: Degree 0 on All Patches}
+\label{tab:uniform}
+\centering
+\begin{tabular}{rrll}
+\toprule
+Layers & Unknowns & $\kappa_N$ & $\kappa-\kappa_N$\\
+\midrule
+8 & 36 & 0.658542980 & $2.1\cdot10^{-3}$\\
+16 & 136 & 0.660434935 & $2.4\cdot10^{-4}$\\
+32 & 528 & 0.660649605 & $2.9\cdot10^{-5}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Exponential Convergence}
+Take $L$ layers and a top degree in proportion to $L$. The error has two sources. The first is the last layer, which touches the edge. No polynomial fits a power at its singular point, so this error stays, but the layer is small, $q^{L}$, and its share falls like a power of $q^{L}$. The second is the misfit on all other patches, which falls like $\rho^{-2p}$ with $p$ in proportion to $L$. Both are $e^{-cL}$ for some $c$. Now count the unknowns. The edge has about $L \cdot p/2$ functions, which is in proportion to $L^2$, and the face has one unknown for each pair of them, in proportion to $L^4$. Thus
+\begin{equation}
+\kappa - \kappa_M \approx e^{-b\, M^{1/4}}
+\label{eq:exponential}
+\end{equation}
+for $M$ unknowns. A fixed degree gives only a power of $M$. In the first four rows of Table~\ref{tab:patches}, the logarithm of the error falls by $3.5$ to $4.6$ for each unit of $M^{1/4}$. This subsection is an argument, not a proof. The proofs for meshes of this type are in \cite{babuska,heuer}.
+
+\section{Matrix-Free Conjugate Gradients}
+The Cholesky method stores the matrix $H$. For $M$ unknowns it has $M^2$ entries: 28~GB for the largest run of Table~\ref{tab:patches}, and a computer with 64~GB stops near 85\,000 unknowns. The work of the factorization grows like $M^3$. But the matrix is not necessary.
+
+\subsection{The Product}
+The refinement of the Cholesky method already makes the product $HC$ without $H$. For one Gaussian it is $(1 + e^{-t^2})\,A C A + 2\,(A C s)\,s^{\T} + 2\,s\,(A C s)^{\T}$, where $C$ is the symmetric $N\times N$ matrix of the unknowns. One product for $K$ Gaussians costs about $4KN^3$ operations, and it needs only the tables: $KN^2$ numbers. There are $M = N(N+1)/2$ unknowns, so the memory grows like $M$ and not like $M^2$.
+
+\subsection{The Method}
+The conjugate gradient method \cite{hestenes} solves a system with a symmetric positive definite matrix, and it needs only such products. Start with no charge, $C_0 = 0$. The residual $r = m - HC$ is what the potential still lacks to 1, tested with each trial function. Divide it by the diagonal of $H$ to get $z$: this is the scaling to a unit diagonal of the Cholesky method. The first direction is $d_0 = z_0$, and each step is
+\begin{align}
+\alpha_k &= \frac{r_k^{\T} z_k}{d_k^{\T} H d_k}, \\
+C_{k+1} &= C_k + \alpha_k d_k, \qquad r_{k+1} = r_k - \alpha_k H d_k, \\
+d_{k+1} &= z_{k+1} + \frac{r_{k+1}^{\T} z_{k+1}}{r_k^{\T} z_k}\, d_k .
+\end{align}
+One step needs one product $Hd_k$ and some sums.
+
+\subsection{Strict Convergence}
+For a symmetric positive definite matrix the method has three properties, and the capacitance gives each of them a meaning.
+
+\emph{Each step increases the bound.} Each $C_k$ is a trial charge, so it has its own lower bound $\kappa_k = 6\,(2\,m^{\T}C_k - C_k^{\T}HC_k)$. One step changes it by
+\begin{equation}
+\kappa_{k+1} - \kappa_k = 6\,\alpha_k\, r_k^{\T} z_k > 0 .
+\label{eq:gain}
+\end{equation}
+The number $d^{\T}Hd$ is an energy and $r^{\T}z$ is a sum of squares, so the gain is positive while the residual is not zero. The bounds increase at each step. They cannot oscillate, and they cannot pass $\kappa_M$, the value of the full system.
+
+\emph{Each step is the best one.} $C_k$ has the smallest energy of the error among all charges that $k$ products can build from the right side. In exact arithmetic the method ends with the exact solution after $M$ steps at most.
+
+\emph{The error falls at least geometrically.} The energy of the error, which is the error of $\kappa$, is not more than
+\begin{equation}
+4 \left( \frac{\sqrt c - 1}{\sqrt c + 1} \right)^{2k}
+\label{eq:cgbound}
+\end{equation}
+times its first value, where $c$ is the condition number of the scaled matrix.
+
+The condition number is small and grows slowly (Table~\ref{tab:condition}). It was measured from the step sizes, and for the two smallest sizes also from the full matrix, with the same result. It is about 10 to 15 times $N$, so the steps grow like $\sqrt N$, which is $M^{1/4}$. The diagonal is the only preconditioner that is necessary.
+
+\begin{table}[!t]
+\caption{Condition Number of the Scaled Matrix and Steps to a Residual of $10^{-13}$}
+\label{tab:condition}
+\centering
+\begin{tabular}{rrrrrr}
+\toprule
+$I$ & Deg. & $N$ & Unknowns & Cond. & Steps\\
+\midrule
+8 & 2 & 19 & 190 & 231 & 105\\
+12 & 4 & 42 & 903 & 629 & 191\\
+16 & 6 & 73 & 2\,701 & 1\,080 & 269\\
+20 & 8 & 112 & 6\,328 & 1\,550 & 323\\
+23 & 10 & 182 & 16\,653 & 2\,110 & 356\\
+27 & 14 & 268 & 36\,046 & 2\,680 & 421\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}[x=1.1cm,y=1.25cm]
+\foreach \y in {0,-1,-2,-3,-4} \draw[gray!40, very thin] (0,\y) -- (7,\y);
+\foreach \x in {0,...,7} \draw[gray!40, very thin] (\x,0) -- (\x,-4);
+\foreach \y/\l in {0/1, -1/10^{-10}, -2/10^{-20}, -3/10^{-30}, -4/10^{-40}}
+  \node[left, font=\scriptsize] at (0,\y) {$\l$};
+\foreach \x/\l in {0/0, 1/100, 2/200, 3/300, 4/400, 5/500, 6/600, 7/700}
+  \node[below, font=\scriptsize] at (\x,-4) {\l};
+\draw[thick] (0,-4) -- (7,-4);
+\begin{scope}
+\clip (0,-4) rectangle (7,0);
+\draw[red!75!black, thick] plot coordinates {(0.01,-0.066) (0.02,-0.111) (0.03,-0.148) (0.04,-0.168) (0.05,-0.210) (0.06,-0.222) (0.07,-0.245) (0.08,-0.254) (0.09,-0.277) (0.10,-0.286) (0.11,-0.299) (0.12,-0.308) (0.13,-0.321) (0.14,-0.329) (0.15,-0.337) (0.16,-0.342) (0.17,-0.349) (0.18,-0.356) (0.19,-0.360) (0.20,-0.372) (0.21,-0.378) (0.25,-0.432) (0.29,-0.458) (0.33,-0.479) (0.37,-0.493) (0.41,-0.517) (0.45,-0.551) (0.49,-0.577) (0.53,-0.599) (0.57,-0.623) (0.61,-0.652) (0.65,-0.690) (0.69,-0.719) (0.73,-0.742) (0.77,-0.760) (0.81,-0.785) (0.85,-0.809) (0.89,-0.831) (0.93,-0.852) (0.97,-0.879) (1.01,-0.913) (1.05,-0.938) (1.09,-0.956) (1.13,-0.978) (1.17,-1.005) (1.21,-1.030) (1.25,-1.049) (1.29,-1.070) (1.33,-1.093) (1.37,-1.118) (1.41,-1.139) (1.45,-1.162) (1.49,-1.184) (1.53,-1.207) (1.57,-1.231) (1.61,-1.251) (1.65,-1.270) (1.69,-1.289) (1.73,-1.310) (1.77,-1.335) (1.81,-1.358) (1.85,-1.378) (1.89,-1.398) (1.93,-1.419) (1.97,-1.441) (2.01,-1.463) (2.05,-1.480) (2.09,-1.500) (2.13,-1.521) (2.17,-1.542) (2.21,-1.564) (2.25,-1.583) (2.29,-1.604) (2.33,-1.622) (2.37,-1.639) (2.41,-1.661) (2.45,-1.688) (2.49,-1.708) (2.53,-1.725) (2.57,-1.742) (2.61,-1.760) (2.65,-1.781) (2.69,-1.799) (2.73,-1.817) (2.77,-1.837) (2.81,-1.856) (2.85,-1.872) (2.89,-1.890) (2.93,-1.906) (2.97,-1.927) (3.01,-1.947) (3.05,-1.962) (3.09,-1.976) (3.13,-1.993) (3.17,-2.009) (3.21,-2.027) (3.25,-2.047) (3.29,-2.065) (3.33,-2.080) (3.37,-2.092) (3.41,-2.106) (3.45,-2.121) (3.49,-2.138) (3.53,-2.152) (3.57,-2.167) (3.61,-2.184) (3.65,-2.202) (3.69,-2.217) (3.73,-2.231) (3.77,-2.249) (3.81,-2.264) (3.85,-2.276) (3.89,-2.291) (3.93,-2.307) (3.97,-2.323) (4.01,-2.339) (4.05,-2.357) (4.09,-2.374) (4.13,-2.396) (4.17,-2.415) (4.21,-2.431) (4.25,-2.439) (4.29,-2.448) (4.33,-2.458) (4.37,-2.471) (4.41,-2.484) (4.45,-2.501) (4.49,-2.518) (4.53,-2.537) (4.57,-2.549) (4.61,-2.563) (4.65,-2.577) (4.69,-2.590) (4.73,-2.601) (4.77,-2.614) (4.81,-2.630) (4.85,-2.648) (4.89,-2.668) (4.93,-2.686) (4.97,-2.704) (5.01,-2.718) (5.05,-2.732) (5.09,-2.743) (5.13,-2.753) (5.17,-2.769) (5.21,-2.785) (5.25,-2.801) (5.29,-2.819) (5.33,-2.838) (5.37,-2.856) (5.41,-2.870) (5.45,-2.885) (5.49,-2.901) (5.53,-2.917) (5.57,-2.932) (5.61,-2.947) (5.65,-2.960) (5.69,-2.973) (5.73,-2.988) (5.77,-3.002) (5.81,-3.018) (5.85,-3.035) (5.89,-3.050) (5.93,-3.063) (5.97,-3.075) (6.01,-3.090) (6.05,-3.104) (6.09,-3.115) (6.13,-3.129) (6.17,-3.146) (6.21,-3.163) (6.25,-3.178) (6.29,-3.192) (6.33,-3.206) (6.37,-3.219) (6.41,-3.234) (6.45,-3.249) (6.49,-3.265) (6.53,-3.280) (6.57,-3.297) (6.61,-3.315) (6.65,-3.334) (6.69,-3.352) (6.73,-3.370) (6.77,-3.386) (6.81,-3.405) (6.85,-3.425) (6.89,-3.446) (6.93,-3.478) (6.97,-3.558)};
+\draw[gray, dashed] plot coordinates {(0.00,0.000) (0.20,-0.025) (0.40,-0.092) (0.60,-0.159) (0.80,-0.226) (1.00,-0.294) (1.20,-0.361) (1.40,-0.428) (1.60,-0.495) (1.80,-0.562) (2.00,-0.629) (2.20,-0.697) (2.40,-0.764) (2.60,-0.831) (2.80,-0.898) (3.00,-0.965) (3.20,-1.032) (3.40,-1.099) (3.60,-1.167) (3.80,-1.234) (4.00,-1.301) (4.20,-1.368) (4.40,-1.435) (4.60,-1.502) (4.80,-1.570) (5.00,-1.637) (5.20,-1.704) (5.40,-1.771) (5.60,-1.838) (5.80,-1.905) (6.00,-1.973) (6.20,-2.040) (6.40,-2.107) (6.60,-2.174) (6.80,-2.241)};
+\end{scope}
+\draw[blue!70!black, densely dotted] (4.21,0) -- (4.21,-4);
+\node[blue!70!black, font=\scriptsize, anchor=north west] at (4.21,0) {second round};
+\node[red!75!black, font=\scriptsize, anchor=north east] at (2.9,-2.0) {error of the bound};
+\node[gray, font=\scriptsize, anchor=south west] at (3.0,-1.05) {bound \eqref{eq:cgbound}};
+\node[font=\footnotesize] at (3.5,-4.45) {step of the conjugate gradient method};
+\end{tikzpicture}
+\caption{The error of the lower bound after each step, for the run with 27 layers and top degree 14 (36\,046 unknowns). The error is the sum of the gains \eqref{eq:gain} of all later steps. It falls by a factor of 0.89 for each step, 20 steps for one digit, and it is below $10^{-20}$ after 315 steps. The bound \eqref{eq:cgbound} with the condition number 2\,680 gives the factor 0.93.}
+\label{fig:cg}
+\end{figure}
+
+\subsection{Floating Point}
+In floating point the three properties need care. Each of the following errors was made, and each was found by a comparison with the Cholesky method on a small size.
+
+\emph{The steps lose their orthogonality.} In exact arithmetic $C_k^{\T} r_k = 0$, and the bound is then only $6\,m^{\T}C_k$. In double precision this product grew by a factor of about 6 for each step, and at step 30 the short formula was $6\cdot10^{-5}$ above the true value. The formula \eqref{eq:gain} stays correct \cite{strakos}. The gains are small numbers with full relative accuracy, so their sum gives the error of a step also where it is far below the rounding of $\kappa$. Fig.~\ref{fig:cg} uses this.
+
+\emph{Double precision ends at 16 digits.} But the error of $\kappa$ is the square of the error of $C$. The first round of steps, in double precision, brings the residual to $10^{-13}$, and that gives $\kappa$ to $5\cdot10^{-25}$. A second round starts from the residual of the first, computed in double-double, and adds its result. Two products in double-double are all the high precision that the solver needs.
+
+\emph{The products do not keep the symmetry.} $ACA$ is not exactly symmetric in floating point. The residual in double-double reads one triangle of $C$, and without an exact symmetry the result was wrong in the 15th digit.
+
+With these corrections the two methods agree: to 24 digits for 12 layers and degree 4, with the same Gaussian sum, and in all 18 digits of Table~\ref{tab:patches} for 20 layers and degree 8.
+
+\subsection{A Wider Gaussian Sum}
+More digits need more of the Gaussian sum, and one test changed an earlier statement. The sum of the Cholesky runs starts at $t = e^{-42}$. The part below that is about $e^{-42}$ of each energy, and it is positive. Without it the energies are too small and $\kappa_N$ is too large. With the start at $e^{-56}$ the value for 12 layers decreases by $2.7\cdot10^{-19}$, and a start at $e^{-70}$ changes nothing more. The upper end has the same effect, $2.8\cdot10^{-20}$ for an end at $e^{52}$ in place of $e^{44}$. So the values of Table~\ref{tab:patches} are about $3\cdot10^{-19}$ too high. This is inside the error of $10^{-18}$ that was stated for them, but beyond the 18th digit those values are not lower bounds. The new program sums from $e^{-56}$ to $e^{60}$ with the step $0.1$: 1\,161 Gaussians.
+
+\subsection{The Runs}
+The program \texttt{cg.jl} takes the tables from \texttt{patches.jl}, so the two programs cannot differ in the system. Table~\ref{tab:runs} gives two runs with different meshes and degrees. Run B passed its time limit of 20 minutes in its second round. The computer was slower during that run, and the cause was not found. Its value is the bound of the first round. In run A the two rounds differ by $5\cdot10^{-25}$, so nothing is lost. The bounds are
+\begin{align}
+\kappa_A &= 0.660\,678\,154\,099\,567\,999\,152\,95, \\
+\kappa_B &= 0.660\,678\,154\,099\,567\,999\,155\,72 .
+\end{align}
+Both are lower bounds, and they differ by $2.8\cdot10^{-21}$. This agrees with the laws of the section before: run A has an error of about $3\cdot10^{-21}$ from its degree, and run B an error of about $10^{-21}$ from its mesh.
+
+\begin{table}[!t]
+\caption{Two Runs of the Conjugate Gradient Method}
+\label{tab:runs}
+\centering
+\begin{tabular}{lrr}
+\toprule
+ & Run A & Run B\\
+\midrule
+Layers, top degree & 27, 14 & 26, 15\\
+Smallest patch & $e^{-38}$ & $e^{-36}$\\
+Edge functions $N$ & 268 & 259\\
+Unknowns & 36\,046 & 33\,670\\
+Tables & 374 s & 606 s\\
+Steps, first round & 421 & 415\\
+Steps, second round & 277 & stopped\\
+One product & 0.85 s & 1.37 s\\
+One product, double-double & 14 s & 13 s\\
+Total & 16 min & 20 min (limit)\\
+Memory in the table phase & 10 GB & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Memory}
+The tables are $KN^2$ numbers, in double-double and in double: 24 bytes each. For run A this is 2.0~GB, where the matrix $H$ would need 10~GB. For the largest Cholesky run it would be 3.3~GB in place of 28~GB. The peak of a run is higher, because the integrals in one variable are made with 1024-bit numbers on 32 threads. The memory is no limit now. The time is.
+
+\section{More Digits}
+What would more digits cost on the same computer? Table~\ref{tab:digits} gives estimates from scaling laws. These runs were not made.
 \begin{itemize}
-\item The smallest patch. The mesh stops at $e^{-32}$ from the edge. With two more layers the result moves by $2\cdot10^{-19}$.
-\item The step of the Gaussian sum. The steps $0.12$ and $0.10$ agree to $5\cdot10^{-22}$. The nodes $t_k$ must be exact: when $\ln t_k$ was rounded to double precision, the result moved by $2\cdot10^{-17}$.
-\item The range of the Gaussian sum, $e^{-42} \le t \le e^{44}$. A wider range moves the result by less than $3\cdot10^{-19}$.
+\item Each degree gains a factor of about 10: the top degree is the number of digits minus 6.
+\item The share of the last layer is its size to the power $4/3$: each digit needs the mesh depth $T$ larger by $0.86$, and $1.44$ layers for each unit of $T$.
+\item The edge functions $N$ then grow like the square of the digits, and the unknowns like the 4th power.
+\item The step of the Gaussian sum decreases like 1/digits and its range grows like the digits, so the Gaussians grow like the square.
+\item The table time grows like the 9th power of the digits, the time of the steps like the 10th, and the memory like the 6th.
+\end{itemize}
+
+\begin{table}[!t]
+\caption{Estimates for More Digits. Only the First Row Was Run}
+\label{tab:digits}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{rrrrrrrr}
+\toprule
+Digits & $I$, deg. & Unknowns & Gauss. & Tables & Steps & Memory & Total\\
+\midrule
+20 & 27, 14 & 36\,046 & 1\,161 & 6 min & 10 min & 2 GB & 16 min\\
+25 & 32, 19 & 80\,000 & 1\,300 & 30 min & 30 min & 5 GB & 1 h\\
+30 & 38, 24 & 160\,000 & 1\,900 & 2 h & 3 h & 15 GB & 6 h\\
+40 & 50, 34 & 480\,000 & 3\,400 & 28 h & 2 d & 130 GB & 4 d\\
+50 & 62, 44 & 1\,100\,000 & 5\,300 & 8 d & 17 d & 480 GB & 4 weeks\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The Cholesky method would need 50~GB, 200~GB, 1.9~TB and 10~TB for the matrix of the last four rows. The rows for 25 and 30 digits are possible with the program as it is: one hour, and one night. From 31 digits on, double-double is not sufficient for the last residual. The rows for 40 and 50 digits do not fit into 64~GB. They would need the tables in double precision only, half of each symmetric table, and the high precision tables made again for the last residual: about 13~GB and 48~GB. The products of \texttt{cg.jl} reach about a quarter of the speed of the processor, so the time of the steps can decrease 3 to 4 times. The time of the tables cannot decrease so easily. Forty digits are a project of days, and fifty digits are not practical with this method on one desktop. And each of these values needs a second run with a different mesh before its digits can be trusted.
+
+\section{The Result}
+The result is \eqref{eq:result}. The two conjugate gradient runs give the lower bounds $\kappa_A$ and $\kappa_B$. Each is a little low: the first by about $3\cdot10^{-21}$ from its degree, the second by about $10^{-21}$ from its mesh. These two numbers are estimates from the scaling laws, not measurements. From the bounds and the estimates we take the value \eqref{eq:result} and assume an error of $10^{-20}$. It is an estimate, not a proved bound. The nearest double is 0.660678154099568.
+
+The Cholesky runs agree with this. Their result, in version 1 of this paper, was $0.660\,678\,154\,099\,568\,000 \pm 10^{-18}$, and the new value is inside that range. The best of them, less the $3\cdot10^{-19}$ of its short Gaussian sum, is about $5\cdot10^{-20}$ below the new value. That is the effect of its larger smallest patch, $e^{-32}$.
+
+These numerical parameters could spoil the last digits.
+\begin{itemize}
+\item The smallest patch. The mesh of the Cholesky runs stops at $e^{-32}$ from the edge, and with two more layers their result moves by $2\cdot10^{-19}$. The two new runs stop at $e^{-38}$ and $e^{-36}$. Their difference of $2.8\cdot10^{-21}$ contains this effect.
+\item The step of the Gaussian sum. The steps $0.12$ and $0.10$ agree to $5\cdot10^{-22}$, and the new runs use $0.10$, with an error bound 4\,000 times smaller than that of $0.12$. The nodes $t_k$ must be exact: when $\ln t_k$ was rounded to double precision, the result moved by $2\cdot10^{-17}$.
+\item The range of the Gaussian sum. The range $e^{-42} \le t \le e^{44}$ of the Cholesky runs makes their values $3\cdot10^{-19}$ too high. The new range is $e^{-56} \le t \le e^{60}$. For 12 layers a start at $e^{-70}$ changes no digit of 24.
+\item The solver. The two rounds of the conjugate gradient method differ by $5\cdot10^{-25}$.
 \end{itemize}
 The value agrees with the best published one, $0.66067815409957$ \cite{helsing}, in all its digits.
 
 \section{The Programs}
-Both programs are plain Julia with threads, without packages. The program \texttt{shells.jl} makes Tables~\ref{tab:cumulative} and \ref{tab:boundary}. The matrix is assembled over the orbits of the 48 symmetries. The values $Q_n$ are refined to 28 digits with double-double residuals, so that the extrapolation does not amplify rounding errors. The program \texttt{patches.jl} makes Table~\ref{tab:patches}. The integrals in one variable cancel strongly and use 1024-bit numbers. The matrix $H$ and its Cholesky factor are in double precision, and the solution is refined with double-double residuals.
+The three programs are plain Julia with threads, without packages. The program \texttt{shells.jl} makes Tables~\ref{tab:cumulative} and \ref{tab:boundary}. The matrix is assembled over the orbits of the 48 symmetries. The values $Q_n$ are refined to 28 digits with double-double residuals, so that the extrapolation does not amplify rounding errors. The program \texttt{patches.jl} makes Table~\ref{tab:patches}. The integrals in one variable cancel strongly and use 1024-bit numbers. The matrix $H$ and its Cholesky factor are in double precision, and the solution is refined with double-double residuals. The program \texttt{cg.jl} makes Table~\ref{tab:runs}. It includes \texttt{patches.jl} for the mesh and the tables, and it adds the products without the matrix, the steps in double precision and the residual in double-double.
 
-On a 32-thread desktop (Core i9-13900K, 64~GB) the shell tables take about 2 minutes, most of it for $n = 512$, and the first six rows of Table~\ref{tab:patches} take 8 minutes. The last row needs 19 minutes and about 30~GB.
+On a 32-thread desktop (Core i9-13900K, 64~GB) the shell tables take about 2 minutes, most of it for $n = 512$, and the first six rows of Table~\ref{tab:patches} take 8 minutes. The last row needs 19 minutes and about 30~GB. Run A of Table~\ref{tab:runs} takes 16 minutes with Julia 1.13.
 
 \section{Prior Art}
 Is this new? The idea is not. It is the Rayleigh--Ritz method: restrict a variational problem to a finite family and solve a linear system. Each part has a name and a history.
 
-The energy principle \eqref{eq:principle} is due to Gauss and Thomson; for the capacity it is the base of \cite{polya}. A finite family with the matrix of energies is Maxwell's method of subareas \cite{maxwell}, in electrical engineering the method of moments \cite{harrington}, and with the energy as the scalar product the Galerkin boundary element method. The formula \eqref{eq:bound} with its error identity is in \cite{betcke}. The energy \eqref{eq:shell} of two overlapping shells is, up to a factor, the trace of the Rotne--Prager--Yamakawa tensor of hydrodynamics \cite{zuk}; there the same sum over the inverse matrix gives the hydrodynamic radius of a chain of beads. The series \eqref{eq:series} is Cholesky, Gram--Schmidt and Parseval. Patches graded in a fixed ratio toward the edges, with polynomials on them, are the $hp$ boundary element method, which is known to converge exponentially for such densities. The sum of Gaussians \eqref{eq:gauss} is a standard tool as well \cite{stenger,beylkin}.
+The energy principle \eqref{eq:principle} is due to Gauss and Thomson; for the capacity it is the base of \cite{polya}. A finite family with the matrix of energies is Maxwell's method of subareas \cite{maxwell}, in electrical engineering the method of moments \cite{harrington}, and with the energy as the scalar product the Galerkin boundary element method. The formula \eqref{eq:bound} with its error identity is in \cite{betcke}. The energy \eqref{eq:shell} of two overlapping shells is, up to a factor, the trace of the Rotne--Prager--Yamakawa tensor of hydrodynamics \cite{zuk}; there the same sum over the inverse matrix gives the hydrodynamic radius of a chain of beads. The series \eqref{eq:series} is Cholesky, Gram--Schmidt and Parseval. Patches graded in a fixed ratio toward the edges, with polynomials on them, are the $hp$ boundary element method \cite{gui,sauter}, which is known to converge exponentially for such densities \cite{babuska,heuer}. The conjugate gradient method is from \cite{hestenes}, and a solver that uses only products with the matrix is the usual way to solve a large boundary element system \cite{sauter}. The sum of Gaussians \eqref{eq:gauss} is a standard tool as well \cite{stenger,beylkin}.
 
-What can be particular to this paper is the combination: the nested shell family in this order as an explicit series, and the patch system with all integrals reduced to $\erf$. We did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and we do not claim that anything here is new.
+What can be particular to this paper is the combination: the nested shell family in this order as an explicit series, the patch system with all integrals reduced to $\erf$, and the conjugate gradient steps as a series of positive gains of the bound. We did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and we do not claim that anything here is new.
 
-The lower bounds are exact statements about exact arithmetic. That the bounds converge to $\kappa$, and how many digits are final, rests here on the numbers: on the agreement of runs with different meshes, degrees and parameters, and on the agreement with the 13 digits of \cite{helsing}.
+The lower bounds are exact statements about exact arithmetic. That the bounds converge to $\kappa$, and how many digits are final, rests here on the numbers: on the agreement of runs with different meshes, degrees and parameters, on the agreement of the two solvers, and on the agreement with the 13 digits of \cite{helsing}.
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{99}
 \bibitem{helsing} J. Helsing and K.-M. Perfekt, ``On the polarizability and capacitance of the cube,'' \emph{Appl. Comput. Harmon. Anal.}, vol.~34, no.~3, pp.~445--468, 2013.
 \bibitem{polya} G. P\'olya and G. Szeg\H{o}, \emph{Isoperimetric Inequalities in Mathematical Physics}. Princeton, NJ, USA: Princeton Univ. Press, 1951.
 \bibitem{maxwell} J. C. Maxwell, \emph{A Treatise on Electricity and Magnetism}. Oxford, U.K.: Clarendon Press, 1873.
@@ -359,6 +619,15 @@ The lower bounds are exact statements about exact arithmetic. That the bounds co
 \bibitem{zuk} P. J. Zuk, E. Wajnryb, K. A. Mizerski, and P. Szymczak, ``Rotne--Prager--Yamakawa approximation for different-sized particles in application to macromolecular bead models,'' \emph{J. Fluid Mech.}, vol.~741, Art. no. R5, 2014.
 \bibitem{stenger} F. Stenger, \emph{Numerical Methods Based on Sinc and Analytic Functions}. New York, NY, USA: Springer, 1993.
 \bibitem{beylkin} G. Beylkin and L. Monz\'on, ``Approximation by exponential sums revisited,'' \emph{Appl. Comput. Harmon. Anal.}, vol.~28, no.~2, pp.~131--149, 2010.
+\bibitem{nedelec} J.-C. N\'ed\'elec and J. Planchard, ``Une m\'ethode variationnelle d'\'el\'ements finis pour la r\'esolution num\'erique d'un probl\`eme ext\'erieur dans $\mathbf{R}^3$,'' \emph{Rev. Fran\c{c}aise Automat. Informat. Recherche Op\'erationnelle}, vol.~7, no.~R3, pp.~105--129, 1973.
+\bibitem{hsiao} G. C. Hsiao and W. L. Wendland, ``A finite element method for some integral equations of the first kind,'' \emph{J. Math. Anal. Appl.}, vol.~58, no.~3, pp.~449--481, 1977.
+\bibitem{reitan} D. K. Reitan and T. J. Higgins, ``Calculation of the electrical capacitance of a cube,'' \emph{J. Appl. Phys.}, vol.~22, no.~2, pp.~223--226, 1951.
+\bibitem{gui} W. Gui and I. Babu\v{s}ka, ``The $h$, $p$ and $h$-$p$ versions of the finite element method in 1 dimension. Part II,'' \emph{Numer. Math.}, vol.~49, pp.~613--657, 1986.
+\bibitem{babuska} I. Babu\v{s}ka, B. Q. Guo, and E. P. Stephan, ``On the exponential convergence of the $h$-$p$ version for boundary element Galerkin methods on polygons,'' \emph{Math. Methods Appl. Sci.}, vol.~12, pp.~413--427, 1990.
+\bibitem{heuer} N. Heuer, M. Maischak, and E. P. Stephan, ``Exponential convergence of the $hp$-version for the boundary element method on open surfaces,'' \emph{Numer. Math.}, vol.~83, pp.~641--666, 1999.
+\bibitem{sauter} S. A. Sauter and C. Schwab, \emph{Boundary Element Methods}. Berlin, Germany: Springer, 2011.
+\bibitem{hestenes} M. R. Hestenes and E. Stiefel, ``Methods of conjugate gradients for solving linear systems,'' \emph{J. Res. Nat. Bur. Standards}, vol.~49, no.~6, pp.~409--436, 1952.
+\bibitem{strakos} Z. Strako\v{s} and P. Tich\'y, ``On error estimation in the conjugate gradient method and why it works in finite precision computations,'' \emph{Electron. Trans. Numer. Anal.}, vol.~13, pp.~56--80, 2002.
 \end{thebibliography}
 
 \end{document}

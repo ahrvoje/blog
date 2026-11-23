@@ -280,6 +280,9 @@ table {
 }
 th,
 td {
+  /* A cell never wraps: a number, or an amount with its unit, stays in one piece.
+     A table that is too wide scrolls. */
+  white-space: nowrap;
   padding: 0.4em 0.9em;
   border-bottom: 1px solid var(--rule);
   text-align: left;
@@ -347,6 +350,11 @@ main > figure:not(:has(figcaption)) + figure {
 
 .katex {
   font-size: 1.04em;
+}
+/* A piece of a formula with the text that touches it (see tie() in build.mjs):
+   no line break between them. */
+.tie {
+  white-space: nowrap;
 }
 .math {
   overflow-x: auto;

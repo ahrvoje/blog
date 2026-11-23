@@ -2,21 +2,25 @@
 title: The capacitance of a cube
 date: 2026-11-22
 author: Hrvoje Abraham, Fable 5.2
-doi: 10.5281/zenodo.24451074
+doi: 10.5281/zenodo.24485184
 ---
 
-A metal sphere of radius $r$ has the capacitance $4\pi\varepsilon_0 r$. For a metal cube no formula is known, only numbers. This post has two results.
+A metal sphere of radius $r$ has the capacitance $4\pi\varepsilon_0 r$. For a metal cube no formula is known, only numbers. This post has two series for that number, and two solvers for the second series.
 
-The first is a series of positive terms for that number, made of charged spherical shells. Each term is an algebraic number from a closed formula, with no integral. The series is exact, but too slow to give many decimals.
+The first series has positive terms and is made of charged spherical shells. Each term is an algebraic number from a closed formula, with no integral. The series is exact, but too slow to give many decimals.
 
-The second is a fast series of the same structure, made of charged patches on the faces. It gives
+The second series is fast. It has the same structure and is made of charged patches on the faces. The post explains why it is fast.
+
+The first solver stores the matrix of the patch system and factors it, the Cholesky method. It gives 18 digits.
+
+The second solver does not store the matrix, the conjugate gradient method. Each of its steps increases the lower bound, and it gives two more digits:
 
 $$
 \small
-C_{\text{cube}} = 4\pi\varepsilon_0\, s\,\kappa, \qquad \kappa = 0.660\,678\,154\,099\,568\,000 \pm 10^{-18}
+C_{\text{cube}} = 4\pi\varepsilon_0\, s\,\kappa, \qquad \kappa = 0.660\,678\,154\,099\,567\,999\,16 \pm 10^{-20}
 $$
 
-for a cube of side $s$. The error is an estimate from the convergence, not a proved bound.
+for a cube of side $s$. The error is an estimate from the convergence, not a proved bound. The post ends with an estimate of the cost of more digits.
 
 ## The problem
 
@@ -549,7 +553,7 @@ Integration by parts moves all derivatives to the polynomials, and what stays ar
 
 The full construction has four steps. All formulas are explicit.
 
-**1. The Gaussians.** Take $t_k = e^{0.12\,k}$ and $w_k = \frac{2}{\sqrt\pi}\, 0.12\, t_k$ for $k = -350, \dots, 366$.
+**1. The Gaussians.** Take $t_k = e^{0.12\,k}$ and $w_k = \frac{2}{\sqrt\pi}\, 0.12\, t_k$ for $k = -350, \dots, 366$. These are the values of `patches.jl`. They are sufficient for 18 digits. The conjugate gradient runs below use a smaller step and a wider range.
 
 **2. One edge.** Choose functions $\varphi_1, \dots, \varphi_N$ of one variable on the edge $[-\frac12, \frac12]$. Here each is a Legendre polynomial on one interval of the mesh, and zero outside it. With the mesh nodes $x_0 < x_1 < \dots$ and the interval $[x_i, x_{i+1}]$ of length $h_i$, the function of degree $n$ on this interval is
 
@@ -637,37 +641,280 @@ As with the shells, the result is a lower bound and a sum of positive terms, one
 | 23 | 12 | 19 503 | 0.660678154099567999066 | $3\cdot10^{-19}$ | 203 s |
 | 32 | 14 | 58 996 | 0.660678154099567999411 | | 1 123 s |
 
-Each row is a lower bound. The errors are differences from the last row, and they fall by a factor of 100 to 2000 from row to row. Sixteen digits need about 17 000 unknowns. The shells gave 3 digits with 1.5 million.
+Each row is a lower bound for the system with this Gaussian sum. The sum is a little short, and this makes the values about $3\cdot10^{-19}$ too high, as the section on the conjugate gradient method shows. So the digits beyond the 18th are not lower bounds of $\kappa$. The errors are differences from the last row, and they fall by a factor of 100 to 2000 from row to row. Sixteen digits need about 17 000 unknowns. The shells gave 3 digits with 1.5 million.
+
+## Why it is fast
+
+The patch method has a name: it is the Galerkin boundary element method in its *hp* form. Each part of the name says one thing.
+
+- *Boundary element.* The unknown is the charge on the surface only, and the surface is divided into elements, here the patches. The equation is an integral equation: the potential of the surface charge is 1 on the surface. A finite element method has its unknowns in the full volume and solves a differential equation there. Its matrix is sparse, because only adjacent elements interact. Here the matrix is full, but the unknowns cover only a surface.
+- *Galerkin.* The equation is tested with the same functions that build the solution: one trial function, one equation. This is the system $HC = m$. It makes $H$ symmetric, and it gives the lower bound.
+- *h* and *p*. The letter $h$ is the size of the elements and $p$ is the degree of the polynomials. The $h$ version makes the elements smaller at a fixed degree. The $p$ version increases the degree on a fixed mesh. The $hp$ version does both: small elements of low degree where the solution is singular, large elements of high degree where it is smooth.
+
+The Galerkin method with finite elements on a surface goes back to Nédélec and Planchard, [*Une méthode variationnelle d'éléments finis pour la résolution numérique d'un problème extérieur dans* $\mathbf R^3$](https://www.numdam.org/item/M2AN_1973__7_3_105_0/) (1973), and to Hsiao and Wendland, *A finite element method for some integral equations of the first kind* (1977). Uniform patches on the cube are older: Reitan and Higgins, *Calculation of the electrical capacitance of a cube* (1951), divided each face into 36 squares and found $0.6555$. The $hp$ idea is from Gui and Babuška, *The h, p and h-p versions of the finite element method in 1 dimension* (1986). Its exponential convergence for boundary elements was proved by Babuška, Guo and Stephan (1990) for polygons, and by Heuer, Maischak and Stephan, *Exponential convergence of the hp-version for the boundary element method on open surfaces* (1999), for surfaces in space. A modern textbook is Sauter and Schwab, [*Boundary Element Methods*](https://doi.org/10.1007/978-3-540-68093-2) (2011).
+
+**The density on one patch.** A patch is the product of the interval $i$ in $x$ and the interval $j$ in $y$. On it the density is
+
+$$
+\small
+\sigma(x, y) = \frac{1}{h_i h_j} \sum_{n=0}^{p_i} \sum_{m=0}^{p_j} C_{(i,n)(j,m)}\, P_n(\xi)\, P_m(\eta),
+$$
+
+where $\xi$ and $\eta$ are $x$ and $y$ stretched to $[-1, 1]$ on the patch. The products $P_n(\xi) P_m(\eta)$ are fixed shapes, and each has its own coefficient. Their sum is one polynomial, of degree $p_i$ in $x$ and $p_j$ in $y$. So "a sum of many polynomials" and "one polynomial of high degree" are the same statement. A patch of degree 10 in both directions has $11 \times 11 = 121$ products. Only the product $n = m = 0$ has a total charge, and its coefficient is the charge of the patch. All the others have the total charge 0 and only move charge inside the patch. Nothing joins the polynomials of two adjacent patches: the density can jump at a patch border, and it can be negative at a point. The lower bound is true for each trial charge, so neither does harm.
+
+<figure>
+<svg viewBox="0 0 720 388" width="720" role="img" aria-label="Left: the computed charge density on a full face of the cube, lowest in the centre and high at the edges. Right: one quarter of the face with all patches drawn at equal size, with the density rising over seven decades toward the corner." style="max-width:100%;height:auto;font-family:inherit">
+<image href="density_face.png" x="30" y="20" width="280" height="280"/>
+<image href="density_quarter.png" x="410" y="20" width="280" height="280"/>
+<image href="density_face_scale.png" x="30" y="308" width="280" height="8" preserveAspectRatio="none"/>
+<image href="density_quarter_scale.png" x="410" y="308" width="280" height="8" preserveAspectRatio="none"/>
+<g fill="var(--muted)" font-size="13" text-anchor="middle">
+<text x="65.0" y="332">0.1</text><text x="131.8" y="332">0.3</text><text x="205.0" y="332">1</text><text x="271.8" y="332">3</text>
+<text x="419.3" y="332">10⁻¹</text><text x="456.7" y="332">1</text><text x="494.0" y="332">10</text><text x="531.3" y="332">10²</text><text x="568.7" y="332">10³</text><text x="606.0" y="332">10⁴</text><text x="643.3" y="332">10⁵</text><text x="680.7" y="332">10⁶</text>
+</g>
+<g fill="var(--ink)" font-size="17" text-anchor="middle">
+<text x="170.0" y="360.0">the full face, true geometry</text>
+<text x="170.0" y="381.0" fill="var(--muted)" font-size="15">only four layers are wide enough to see</text>
+<text x="550.0" y="360.0">one quarter, all patches at equal size</text>
+<text x="550.0" y="381.0" fill="var(--muted)" font-size="15">face centre bottom left, cube corner top right</text>
+</g>
+</svg>
+<figcaption>The computed density of the run with 16 layers and top degree 6. The colour is the logarithm of the density, and each band is a factor of 1.12, so the bands are level lines. White lines are patch borders. In this run each layer is 7.4 times thinner than the layer before it.</figcaption>
+</figure>
+
+The density is $0.068$ in the centre of the face, and its mean over the corner patch is $10^6$. The bands bend inside the patches: the density is not uniform there. They go across the patch borders almost without a step, so the density is almost continuous, but only because that is the best fit. In the last two layers the degree is 0, and the bands are straight. The density is positive at all the 65 536 points that I tested. The white cross in the centre is the mirror: the mesh is made for one half of the edge, so the middle of the face is four patches, not one.
+
+**Equal errors, not equal charges.** The large patches hold much more charge than the small ones. Is that a bad distribution of the work? No. The error of a patch does not come from its charge. It comes from the misfit of the polynomial, and the misfit depends on one number: the size of the patch divided by its distance to the edge. On a mesh with a fixed ratio $q$ between the layers this number is the same for all patches. The best polynomial of degree $p$ for the power $d^{-1/3}$ on such a patch has a relative error near $\rho^{-p}$, with
+
+$$
+\rho = \frac{1 + \sqrt q}{1 - \sqrt q},
+$$
+
+which is 3 for $q = \frac14$, the ratio of the runs with 23 layers. Each degree thus divides the misfit by 3, on a large patch and on a small one.
+
+The share of a patch in the error of $\kappa$ is an energy: about the square of the relative misfit times the square of the charge of the patch. With one degree more the first factor falls 9 times. One layer nearer to the edge, the charge falls by $q^{2/3}$ and its square by $q^{4/3}$, which is $0.16$. The two effects balance when the degree falls by about $0.8$ for each layer toward the edge. The runs with 23 layers use the slope $0.75$. This is the reason for the falling degree: the small patches need less, because they hold less. The shares are then nearly equal, and few unknowns are wasted.
+
+A model with one edge shows the size of the effect. Take the density $d^{-1/3}$, fit it on each interval, and take the interval length times the integral of the squared misfit as the error of the interval. Three meshes with 182 unknowns each, the first with the 23 layers and the degrees of the runs:
+
+| Mesh | Intervals | Smallest interval | Sum of the errors |
+|:---|---:|:---|:---|
+| Fixed ratio, degrees 10 to 0 | 23 | $5\cdot10^{-14}$ | $6\cdot10^{-15}$ |
+| Equal charge, degrees 10 to 0 | 23 | $5\cdot10^{-3}$ | $6\cdot10^{-4}$ |
+| Equal charge, degree 0 | 182 | $2\cdot10^{-4}$ | $1\cdot10^{-5}$ |
+
+On the first mesh the charge of an interval changes by 8 orders of magnitude from the centre to the edge, and the error stays between $10^{-20}$ and $10^{-15}$. On the meshes of equal charge it is the opposite, and the interval at the edge holds almost all of the error. The reason is the count: $n$ intervals of equal charge have their nodes at $d \propto (i/n)^{3/2}$, so the smallest is $n^{-3/2}$, and $10^{-13}$ would need some $10^{8}$ intervals. Equal charge is a good rule for a fixed low degree. With polynomials it is worse than no rule.
+
+**Uniform patches.** Can the polynomials be left out? The program can do it: degree 0 on all patches, and more layers on the same $\tanh$ mesh.
+
+| Layers | Unknowns | $\kappa_N$ | $\kappa - \kappa_N$ |
+|---:|---:|:---|:---|
+| 8 | 36 | 0.658542980 | $2.1\cdot10^{-3}$ |
+| 16 | 136 | 0.660434935 | $2.4\cdot10^{-4}$ |
+| 32 | 528 | 0.660649605 | $2.9\cdot10^{-5}$ |
+
+Four times more unknowns divide the error by about $8.5$. This is a power law, near $M^{-1.6}$ for $M$ unknowns, and sixteen digits would need about $10^{10}$ unknowns. The error of a uniform patch is in proportion to its size divided by its distance to the edge, and only a smaller step from layer to layer can decrease it. The table does this: the smallest patch is fixed, so more layers make all steps smaller. More layers at a fixed step would only extend the mesh toward the edge, and would not help. With the polynomials, 903 unknowns give $1.5\cdot10^{-7}$.
+
+**Exponential convergence.** Take $L$ layers and a top degree in proportion to $L$. The error has two sources. The first is the last layer, which touches the edge. No polynomial fits a power at its singular point, so this error stays, but the layer is small, $q^{L}$, and its share falls like a power of $q^{L}$. The second is the misfit on all other patches, which falls like $\rho^{-2p}$ with $p$ in proportion to $L$. Both are $e^{-cL}$ for some $c$. Now count the unknowns. The edge has about $L \cdot p/2$ functions, which is in proportion to $L^2$, and the face has one unknown for each pair of them, in proportion to $L^4$. Thus
+
+$$
+\kappa - \kappa_M \approx e^{-b\, M^{1/4}}
+$$
+
+for $M$ unknowns. A fixed degree gives only a power of $M$. In the first four rows of the table above, the logarithm of the error falls by $3.5$ to $4.6$ for each unit of $M^{1/4}$. This paragraph is an argument, not a proof. The proofs for meshes of this type are in the papers cited above.
+
+## Matrix-free conjugate gradient
+
+The Cholesky method stores the matrix $H$. For $M$ unknowns it has $M^2$ entries: 28 GB for the largest run above, and a computer with 64 GB stops near 85 000 unknowns. The work of the factorization grows like $M^3$. But the matrix is not necessary.
+
+**The product.** The refinement above already makes the product $HC$ without $H$. For one Gaussian it is $(1 + e^{-t^2})\,A C A + 2\,(A C s)\,s^{\mathsf T} + 2\,s\,(A C s)^{\mathsf T}$, where $C$ is the symmetric $N\times N$ matrix of the unknowns. One product for $K$ Gaussians costs about $4KN^3$ operations, and it needs only the tables: $KN^2$ numbers. There are $M = N(N+1)/2$ unknowns, so the memory grows like $M$ and not like $M^2$.
+
+**The method.** The conjugate gradient method of Hestenes and Stiefel, *Methods of conjugate gradients for solving linear systems* (1952), solves a system with a symmetric positive definite matrix, and it needs only such products. Start with no charge, $C_0 = 0$. The residual $r = m - HC$ is what the potential still lacks to 1, tested with each trial function. Divide it by the diagonal of $H$ to get $z$: this is the scaling to a unit diagonal of the Cholesky method. The first direction is $d_0 = z_0$, and each step is
+
+$$
+\small
+\begin{gathered}
+\alpha_k = \frac{r_k^{\mathsf T} z_k}{d_k^{\mathsf T} H d_k}, \qquad
+C_{k+1} = C_k + \alpha_k d_k, \qquad
+r_{k+1} = r_k - \alpha_k H d_k, \\[6pt]
+d_{k+1} = z_{k+1} + \frac{r_{k+1}^{\mathsf T} z_{k+1}}{r_k^{\mathsf T} z_k}\, d_k .
+\end{gathered}
+$$
+
+One step needs one product $Hd_k$ and some sums.
+
+**Strict convergence.** For a symmetric positive definite matrix the method has three properties, and the capacitance gives each of them a meaning.
+
+*Each step increases the bound.* Each $C_k$ is a trial charge, so it has its own lower bound $\kappa_k = 6\,(2\,m^{\mathsf T}C_k - C_k^{\mathsf T}HC_k)$. One step changes it by
+
+$$
+\kappa_{k+1} - \kappa_k = 6\,\alpha_k\, r_k^{\mathsf T} z_k > 0 .
+$$
+
+The number $d^{\mathsf T}Hd$ is an energy and $r^{\mathsf T}z$ is a sum of squares, so the gain is positive while the residual is not zero. The bounds increase at each step. They cannot oscillate, and they cannot pass $\kappa_M$, the value of the full system.
+
+*Each step is the best one.* $C_k$ has the smallest energy of the error among all charges that $k$ products can build from the right side. In exact arithmetic the method ends with the exact solution after $M$ steps at most.
+
+*The error falls at least geometrically.* The energy of the error, which is the error of $\kappa$, is not more than $4\,\big((\sqrt c - 1)/(\sqrt c + 1)\big)^{2k}$ times its first value, where $c$ is the condition number of the scaled matrix.
+
+The condition number is small and grows slowly. I measured it from the step sizes, and for the two smallest sizes also from the full matrix, with the same result:
+
+| Layers | Top degree | Edge functions $N$ | Unknowns | Condition number | Steps to $10^{-13}$ |
+|---:|---:|---:|---:|---:|---:|
+| 8 | 2 | 19 | 190 | 231 | 105 |
+| 12 | 4 | 42 | 903 | 629 | 191 |
+| 16 | 6 | 73 | 2 701 | 1 080 | 269 |
+| 20 | 8 | 112 | 6 328 | 1 550 | 323 |
+| 23 | 10 | 182 | 16 653 | 2 110 | 356 |
+| 27 | 14 | 268 | 36 046 | 2 680 | 421 |
+
+It is about 10 to 15 times $N$, so the steps grow like $\sqrt N$, which is $M^{1/4}$. The diagonal is the only preconditioner that is necessary.
+
+<figure>
+<svg viewBox="0 0 720 372" width="720" role="img" aria-label="The error of the lower bound falls in a nearly straight line on a logarithmic scale, from 1 at the first step to 3e-36 at step 697, and it stays below the bound from the condition number." style="max-width:100%;height:auto;font-family:inherit">
+<g fill="none" stroke-width="1">
+<line x1="78" y1="310.0" x2="696" y2="310.0" stroke="var(--rule)"/>
+<line x1="78" y1="273.8" x2="696" y2="273.8" stroke="var(--rule)"/>
+<line x1="78" y1="237.5" x2="696" y2="237.5" stroke="var(--rule)"/>
+<line x1="78" y1="201.3" x2="696" y2="201.3" stroke="var(--rule)"/>
+<line x1="78" y1="165.0" x2="696" y2="165.0" stroke="var(--rule)"/>
+<line x1="78" y1="128.8" x2="696" y2="128.8" stroke="var(--rule)"/>
+<line x1="78" y1="92.5" x2="696" y2="92.5" stroke="var(--rule)"/>
+<line x1="78" y1="56.3" x2="696" y2="56.3" stroke="var(--rule)"/>
+<line x1="78" y1="20.0" x2="696" y2="20.0" stroke="var(--rule)"/>
+<line x1="78.0" y1="20" x2="78.0" y2="310" stroke="var(--rule)"/>
+<line x1="166.3" y1="20" x2="166.3" y2="310" stroke="var(--rule)"/>
+<line x1="254.6" y1="20" x2="254.6" y2="310" stroke="var(--rule)"/>
+<line x1="342.9" y1="20" x2="342.9" y2="310" stroke="var(--rule)"/>
+<line x1="431.1" y1="20" x2="431.1" y2="310" stroke="var(--rule)"/>
+<line x1="519.4" y1="20" x2="519.4" y2="310" stroke="var(--rule)"/>
+<line x1="607.7" y1="20" x2="607.7" y2="310" stroke="var(--rule)"/>
+<line x1="696.0" y1="20" x2="696.0" y2="310" stroke="var(--rule)"/>
+<line x1="78" y1="310" x2="696" y2="310" stroke="var(--ink)" stroke-width="2"/>
+<polyline points="78.0,20.0 82.4,20.0 86.8,20.0 91.2,20.6 95.7,21.8 100.1,23.0 104.5,24.2 108.9,25.5 113.3,26.7 117.7,27.9 122.1,29.1 126.6,30.3 131.0,31.5 135.4,32.8 139.8,34.0 144.2,35.2 148.6,36.4 153.0,37.6 157.5,38.9 161.9,40.1 166.3,41.3 170.7,42.5 175.1,43.7 179.5,44.9 183.9,46.2 188.4,47.4 192.8,48.6 197.2,49.8 201.6,51.0 206.0,52.2 210.4,53.5 214.8,54.7 219.3,55.9 223.7,57.1 228.1,58.3 232.5,59.5 236.9,60.8 241.3,62.0 245.7,63.2 250.2,64.4 254.6,65.6 259.0,66.8 263.4,68.1 267.8,69.3 272.2,70.5 276.6,71.7 281.1,72.9 285.5,74.2 289.9,75.4 294.3,76.6 298.7,77.8 303.1,79.0 307.5,80.2 312.0,81.5 316.4,82.7 320.8,83.9 325.2,85.1 329.6,86.3 334.0,87.5 338.4,88.8 342.9,90.0 347.3,91.2 351.7,92.4 356.1,93.6 360.5,94.8 364.9,96.1 369.3,97.3 373.8,98.5 378.2,99.7 382.6,100.9 387.0,102.1 391.4,103.4 395.8,104.6 400.2,105.8 404.7,107.0 409.1,108.2 413.5,109.5 417.9,110.7 422.3,111.9 426.7,113.1 431.1,114.3 435.6,115.5 440.0,116.8 444.4,118.0 448.8,119.2 453.2,120.4 457.6,121.6 462.0,122.8 466.5,124.1 470.9,125.3 475.3,126.5 479.7,127.7 484.1,128.9 488.5,130.1 492.9,131.4 497.4,132.6 501.8,133.8 506.2,135.0 510.6,136.2 515.0,137.4 519.4,138.7 523.8,139.9 528.3,141.1 532.7,142.3 537.1,143.5 541.5,144.8 545.9,146.0 550.3,147.2 554.7,148.4 559.2,149.6 563.6,150.8 568.0,152.1 572.4,153.3 576.8,154.5 581.2,155.7 585.6,156.9 590.1,158.1 594.5,159.4 598.9,160.6 603.3,161.8 607.7,163.0 612.1,164.2 616.5,165.4 621.0,166.7 625.4,167.9 629.8,169.1 634.2,170.3 638.6,171.5 643.0,172.7 647.4,174.0 651.9,175.2 656.3,176.4 660.7,177.6 665.1,178.8 669.5,180.1 673.9,181.3 678.3,182.5 682.8,183.7 687.2,184.9 691.6,186.1" stroke="var(--muted)" stroke-dasharray="5 4" stroke-width="1.4"/>
+<line x1="449.7" y1="20" x2="449.7" y2="310" stroke="var(--code-function)" stroke-dasharray="2 4" stroke-width="1.4"/>
+<polyline points="78.9,24.8 79.8,28.0 80.6,30.7 81.5,32.2 82.4,35.2 83.3,36.1 84.2,37.7 85.1,38.4 85.9,40.1 86.8,40.8 87.7,41.7 88.6,42.3 89.5,43.3 90.4,43.8 91.2,44.4 92.1,44.8 93.0,45.3 93.9,45.8 94.8,46.1 95.7,47.0 96.5,47.4 97.4,48.4 98.3,49.2 99.2,50.0 100.1,51.3 101.0,51.8 101.8,52.1 102.7,52.8 103.6,53.2 104.5,53.6 105.4,54.0 106.3,54.3 107.1,54.7 108.0,55.0 108.9,55.2 109.8,55.5 110.7,55.8 111.5,56.0 112.4,56.5 113.3,56.9 114.2,57.5 115.1,58.3 116.0,58.8 116.8,59.4 117.7,59.9 118.6,60.4 119.5,60.9 120.4,61.4 121.3,61.9 122.1,62.2 123.0,62.7 123.9,63.1 124.8,63.4 125.7,63.8 126.6,64.3 127.4,64.7 128.3,65.2 129.2,65.6 130.1,66.0 131.0,66.8 131.9,67.3 132.7,68.0 133.6,68.7 134.5,69.4 135.4,70.0 136.3,70.7 137.2,71.1 138.0,71.6 138.9,72.1 139.8,72.6 140.7,72.9 141.6,73.4 142.4,73.8 143.3,74.0 144.2,74.4 145.1,74.7 146.0,75.1 146.9,75.6 147.7,76.0 148.6,76.5 149.5,76.9 150.4,77.3 151.3,77.8 152.2,78.2 153.0,78.7 153.9,79.1 154.8,79.5 155.7,79.9 156.6,80.2 157.5,80.6 158.3,81.1 159.2,81.4 160.1,81.7 161.0,82.3 161.9,82.7 162.8,83.2 163.6,83.8 164.5,84.3 165.4,85.0 166.3,85.7 167.2,86.2 168.1,86.7 168.9,87.2 169.8,87.6 170.7,88.0 171.6,88.3 172.5,88.6 173.3,88.9 174.2,89.3 175.1,89.7 176.0,90.1 176.9,90.5 177.8,90.9 178.6,91.3 179.5,91.9 180.4,92.4 181.3,92.9 182.2,93.4 183.1,93.9 183.9,94.3 184.8,94.7 185.7,95.1 186.6,95.4 187.5,95.8 188.4,96.1 189.2,96.5 190.1,96.8 191.0,97.2 191.9,97.6 192.8,98.0 193.7,98.5 194.5,98.9 195.4,99.2 196.3,99.6 197.2,100.1 198.1,100.6 199.0,101.1 199.8,101.4 200.7,102.0 201.6,102.3 202.5,102.6 203.4,103.1 204.2,103.5 205.1,103.9 206.0,104.3 206.9,104.6 207.8,105.0 208.7,105.5 209.5,105.9 210.4,106.2 211.3,106.8 212.2,107.1 213.1,107.5 214.0,108.0 214.8,108.4 215.7,108.8 216.6,109.2 217.5,109.5 218.4,109.7 219.3,110.2 220.1,110.7 221.0,111.0 221.9,111.4 222.8,111.8 223.7,112.1 224.6,112.5 225.4,112.8 226.3,113.2 227.2,113.5 228.1,113.8 229.0,114.2 229.9,114.6 230.7,115.0 231.6,115.6 232.5,116.0 233.4,116.4 234.3,116.8 235.1,117.2 236.0,117.6 236.9,118.0 237.8,118.5 238.7,118.9 239.6,119.3 240.4,119.5 241.3,119.9 242.2,120.3 243.1,120.7 244.0,120.9 244.9,121.3 245.7,121.7 246.6,122.1 247.5,122.5 248.4,122.9 249.3,123.3 250.2,123.7 251.0,124.1 251.9,124.5 252.8,124.9 253.7,125.3 254.6,125.6 255.5,126.0 256.3,126.4 257.2,126.7 258.1,127.0 259.0,127.3 259.9,127.7 260.8,128.1 261.6,128.4 262.5,128.7 263.4,129.1 264.3,129.5 265.2,129.9 266.0,130.3 266.9,130.7 267.8,131.1 268.7,131.5 269.6,131.8 270.5,132.3 271.3,132.6 272.2,133.0 273.1,133.4 274.0,133.7 274.9,134.1 275.8,134.5 276.6,134.8 277.5,135.2 278.4,135.6 279.3,135.9 280.2,136.3 281.1,136.7 281.9,137.1 282.8,137.4 283.7,137.6 284.6,137.9 285.5,138.2 286.4,138.6 287.2,138.9 288.1,139.2 289.0,139.6 289.9,140.1 290.8,140.4 291.7,140.9 292.5,141.4 293.4,141.9 294.3,142.4 295.2,142.8 296.1,143.2 296.9,143.6 297.8,143.8 298.7,144.2 299.6,144.4 300.5,144.8 301.4,145.1 302.2,145.3 303.1,145.6 304.0,146.0 304.9,146.3 305.8,146.6 306.7,146.8 307.5,147.2 308.4,147.6 309.3,148.0 310.2,148.4 311.1,148.7 312.0,149.1 312.8,149.5 313.7,149.8 314.6,150.1 315.5,150.4 316.4,150.7 317.3,151.0 318.1,151.3 319.0,151.7 319.9,152.1 320.8,152.4 321.7,152.8 322.6,153.2 323.4,153.6 324.3,153.9 325.2,154.2 326.1,154.6 327.0,154.9 327.8,155.3 328.7,155.5 329.6,155.7 330.5,156.1 331.4,156.4 332.3,156.7 333.1,157.0 334.0,157.3 334.9,157.5 335.8,157.8 336.7,158.2 337.6,158.5 338.4,158.9 339.3,159.4 340.2,159.7 341.1,160.2 342.0,160.5 342.9,160.8 343.7,161.1 344.6,161.4 345.5,161.7 346.4,162.0 347.3,162.3 348.2,162.5 349.0,162.8 349.9,163.1 350.8,163.3 351.7,163.6 352.6,163.8 353.5,164.1 354.3,164.5 355.2,164.8 356.1,165.0 357.0,165.3 357.9,165.7 358.7,166.0 359.6,166.3 360.5,166.6 361.4,167.0 362.3,167.3 363.2,167.7 364.0,168.0 364.9,168.4 365.8,168.7 366.7,169.1 367.6,169.4 368.5,169.7 369.3,170.0 370.2,170.3 371.1,170.6 372.0,170.8 372.9,171.0 373.8,171.2 374.6,171.4 375.5,171.7 376.4,171.9 377.3,172.1 378.2,172.4 379.1,172.7 379.9,172.9 380.8,173.3 381.7,173.6 382.6,173.8 383.5,174.2 384.4,174.4 385.2,174.7 386.1,175.0 387.0,175.2 387.9,175.6 388.8,175.8 389.6,176.0 390.5,176.3 391.4,176.6 392.3,176.9 393.2,177.1 394.1,177.3 394.9,177.6 395.8,178.1 396.7,178.4 397.6,178.7 398.5,179.0 399.4,179.4 400.2,179.7 401.1,180.0 402.0,180.2 402.9,180.4 403.8,180.8 404.7,180.9 405.5,181.2 406.4,181.5 407.3,181.8 408.2,182.1 409.1,182.4 410.0,182.7 410.8,183.0 411.7,183.3 412.6,183.6 413.5,183.9 414.4,184.1 415.3,184.3 416.1,184.6 417.0,184.8 417.9,185.0 418.8,185.3 419.7,185.6 420.5,185.9 421.4,186.1 422.3,186.3 423.2,186.7 424.1,187.0 425.0,187.2 425.8,187.6 426.7,187.8 427.6,188.1 428.5,188.4 429.4,188.7 430.3,189.1 431.1,189.3 432.0,189.6 432.9,190.0 433.8,190.2 434.7,190.7 435.6,190.9 436.4,191.1 437.3,191.5 438.2,191.9 439.1,192.1 440.0,192.6 440.9,192.9 441.7,193.3 442.6,193.7 443.5,194.0 444.4,194.4 445.3,194.8 446.2,195.1 447.0,195.4 447.9,195.6 448.8,195.9 449.7,196.2 450.6,196.4 451.4,196.5 452.3,196.6 453.2,196.8 454.1,197.0 455.0,197.1 455.9,197.3 456.7,197.5 457.6,197.6 458.5,197.9 459.4,198.0 460.3,198.2 461.2,198.5 462.0,198.6 462.9,198.8 463.8,199.2 464.7,199.4 465.6,199.6 466.5,199.9 467.3,200.1 468.2,200.4 469.1,200.7 470.0,200.9 470.9,201.4 471.8,201.6 472.6,201.9 473.5,202.3 474.4,202.6 475.3,203.0 476.2,203.2 477.1,203.6 477.9,203.9 478.8,204.1 479.7,204.4 480.6,204.6 481.5,204.8 482.3,205.0 483.2,205.4 484.1,205.5 485.0,205.8 485.9,206.1 486.8,206.3 487.6,206.6 488.5,206.8 489.4,207.0 490.3,207.3 491.2,207.5 492.1,207.7 492.9,207.9 493.8,208.2 494.7,208.4 495.6,208.6 496.5,208.8 497.4,209.0 498.2,209.3 499.1,209.5 500.0,209.7 500.9,210.0 501.8,210.4 502.7,210.7 503.5,211.1 504.4,211.4 505.3,211.6 506.2,212.0 507.1,212.3 508.0,212.7 508.8,213.1 509.7,213.4 510.6,213.8 511.5,214.1 512.4,214.4 513.2,214.7 514.1,215.1 515.0,215.4 515.9,215.7 516.8,216.0 517.7,216.3 518.5,216.5 519.4,216.8 520.3,217.0 521.2,217.3 522.1,217.6 523.0,217.8 523.8,218.1 524.7,218.3 525.6,218.5 526.5,218.7 527.4,218.9 528.3,219.1 529.1,219.3 530.0,219.4 530.9,219.6 531.8,219.9 532.7,220.2 533.6,220.4 534.4,220.8 535.3,221.0 536.2,221.4 537.1,221.7 538.0,221.9 538.9,222.2 539.7,222.5 540.6,222.7 541.5,223.1 542.4,223.4 543.3,223.7 544.1,224.1 545.0,224.4 545.9,224.7 546.8,225.1 547.7,225.4 548.6,225.8 549.4,226.1 550.3,226.4 551.2,226.8 552.1,227.1 553.0,227.3 553.9,227.7 554.7,227.9 555.6,228.1 556.5,228.3 557.4,228.6 558.3,228.9 559.2,229.2 560.0,229.4 560.9,229.7 561.8,230.0 562.7,230.3 563.6,230.6 564.5,230.9 565.3,231.2 566.2,231.5 567.1,231.8 568.0,232.0 568.9,232.3 569.8,232.6 570.6,232.8 571.5,233.1 572.4,233.4 573.3,233.6 574.2,233.9 575.0,234.1 575.9,234.4 576.8,234.6 577.7,234.9 578.6,235.1 579.5,235.3 580.3,235.6 581.2,235.8 582.1,236.1 583.0,236.4 583.9,236.6 584.8,236.8 585.6,237.1 586.5,237.3 587.4,237.6 588.3,237.9 589.2,238.3 590.1,238.5 590.9,238.8 591.8,239.1 592.7,239.4 593.6,239.7 594.5,240.1 595.4,240.3 596.2,240.6 597.1,240.9 598.0,241.1 598.9,241.4 599.8,241.6 600.7,241.8 601.5,242.0 602.4,242.3 603.3,242.5 604.2,242.7 605.1,242.9 605.9,243.2 606.8,243.5 607.7,243.8 608.6,244.0 609.5,244.2 610.4,244.5 611.2,244.8 612.1,245.0 613.0,245.2 613.9,245.5 614.8,245.7 615.7,245.9 616.5,246.1 617.4,246.3 618.3,246.6 619.2,246.9 620.1,247.2 621.0,247.4 621.8,247.8 622.7,248.1 623.6,248.4 624.5,248.7 625.4,249.0 626.3,249.3 627.1,249.6 628.0,249.9 628.9,250.2 629.8,250.4 630.7,250.6 631.6,250.9 632.4,251.2 633.3,251.4 634.2,251.7 635.1,251.9 636.0,252.2 636.8,252.5 637.7,252.7 638.6,252.9 639.5,253.1 640.4,253.4 641.3,253.6 642.1,253.9 643.0,254.1 643.9,254.4 644.8,254.7 645.7,255.0 646.6,255.2 647.4,255.5 648.3,255.8 649.2,256.2 650.1,256.5 651.0,256.7 651.9,257.1 652.7,257.3 653.6,257.5 654.5,257.8 655.4,258.2 656.3,258.4 657.2,258.8 658.0,259.0 658.9,259.3 659.8,259.7 660.7,260.0 661.6,260.4 662.5,260.7 663.3,261.1 664.2,261.4 665.1,261.7 666.0,262.1 666.9,262.4 667.7,262.7 668.6,263.0 669.5,263.3 670.4,263.7 671.3,264.0 672.2,264.3 673.0,264.7 673.9,265.0 674.8,265.3 675.7,265.5 676.6,265.8 677.5,266.1 678.3,266.5 679.2,266.8 680.1,267.1 681.0,267.5 681.9,267.8 682.8,268.3 683.6,268.6 684.5,269.0 685.4,269.4 686.3,269.9 687.2,270.2 688.1,270.8 688.9,271.3 689.8,272.1 690.7,273.2 691.6,274.1 692.5,275.6 693.4,278.0" stroke="var(--accent)" stroke-width="2"/>
+</g>
+<g fill="var(--muted)" font-size="13" text-anchor="end">
+<text x="70" y="314.5">10⁻⁴⁰</text>
+<text x="70" y="278.3">10⁻³⁵</text>
+<text x="70" y="242.0">10⁻³⁰</text>
+<text x="70" y="205.8">10⁻²⁵</text>
+<text x="70" y="169.5">10⁻²⁰</text>
+<text x="70" y="133.3">10⁻¹⁵</text>
+<text x="70" y="97.0">10⁻¹⁰</text>
+<text x="70" y="60.8">10⁻⁵</text>
+<text x="70" y="24.5">1</text>
+</g>
+<g fill="var(--muted)" font-size="13" text-anchor="middle">
+<text x="78.0" y="328">0</text>
+<text x="166.3" y="328">100</text>
+<text x="254.6" y="328">200</text>
+<text x="342.9" y="328">300</text>
+<text x="431.1" y="328">400</text>
+<text x="519.4" y="328">500</text>
+<text x="607.7" y="328">600</text>
+<text x="696.0" y="328">700</text>
+</g>
+<g fill="var(--ink)" font-size="17" text-anchor="middle">
+<text x="387" y="354">step of the conjugate gradient method</text>
+<text x="262.9" y="163.1" fill="var(--accent)" font-style="italic" text-anchor="end">error of the bound</text>
+<text x="474.0" y="94.0" fill="var(--muted)" font-size="15" text-anchor="start">bound from the condition number</text>
+<text x="457.7" y="38" fill="var(--code-function)" font-size="15" text-anchor="start">second round</text>
+</g>
+</svg>
+<figcaption>The error of the lower bound after each step, for the run with 27 layers and top degree 14 (36 046 unknowns). The error is the sum of the gains of all later steps. It falls by a factor of 0.89 for each step, 20 steps for one digit, and it is below 10⁻²⁰ after 315 steps. The bound from the condition number 2 680 gives the factor 0.93.</figcaption>
+</figure>
+
+**In floating point** the three properties need care. I made each of these errors, and found each by a comparison with the Cholesky method on a small size.
+
+- *The steps lose their orthogonality.* In exact arithmetic $C_k^{\mathsf T} r_k = 0$, and the bound is then only $6\,m^{\mathsf T}C_k$. In double precision this product grew by a factor of about 6 for each step, and at step 30 the short formula was $6\cdot10^{-5}$ above the true value. The formula with the gains stays correct, as Strakoš and Tichý showed in [*On error estimation in the conjugate gradient method and why it works in finite precision computations*](https://etna.math.kent.edu/vol.13.2002/pp56-80.dir/pp56-80.html) (2002). The gains are small numbers with full relative accuracy, so their sum gives the error of a step also where it is far below the rounding of $\kappa$. The figure uses this.
+- *Double precision ends at 16 digits.* But the error of $\kappa$ is the square of the error of $C$. The first round of steps, in double precision, brings the residual to $10^{-13}$, and that gives $\kappa$ to $5\cdot10^{-25}$. A second round starts from the residual of the first, computed in double-double, and adds its result. Two products in double-double are all the high precision that the solver needs.
+- *The products do not keep the symmetry.* $ACA$ is not exactly symmetric in floating point. The residual in double-double reads one triangle of $C$, and without an exact symmetry the result was wrong in the 15th digit.
+
+With these corrections the two methods agree: to 24 digits for 12 layers and degree 4, with the same Gaussian sum, and in all 18 digits of the table above for 20 layers and degree 8.
+
+**A wider Gaussian sum.** More digits need more of the Gaussian sum, and one test changed an earlier statement. The sum of the Cholesky runs starts at $t = e^{-42}$. The part below that is about $e^{-42}$ of each energy, and it is positive. Without it the energies are too small and $\kappa_N$ is too large. With the start at $e^{-56}$ the value for 12 layers decreases by $2.7\cdot10^{-19}$, and a start at $e^{-70}$ changes nothing more. The upper end has the same effect, $2.8\cdot10^{-20}$ for an end at $e^{52}$ in place of $e^{44}$. So the values of the Cholesky table are about $3\cdot10^{-19}$ too high. This is inside the stated error of $10^{-18}$, but beyond the 18th digit those values are not lower bounds. The new program sums from $e^{-56}$ to $e^{60}$ with the step $0.1$: 1 161 Gaussians.
+
+**The runs.** The program [cg.jl](cg.jl) does all this. It takes the tables from `patches.jl`, so the two programs cannot differ in the system. Two runs with different meshes and degrees:
+
+| | Run A | Run B |
+|:---|---:|---:|
+| Layers, top degree | 27, 14 | 26, 15 |
+| Smallest patch | $e^{-38}$ | $e^{-36}$ |
+| Edge functions, unknowns | 268, 36 046 | 259, 33 670 |
+| Tables | 374 s | 606 s |
+| Steps, first and second round | 421, 277 | 415, stopped |
+| One product | 0.85 s | 1.37 s |
+| One product in double-double | 14 s | 13 s |
+| Total | 16 min | 20 min, the time limit |
+| Memory in the table phase | 10 GB | |
+
+$$
+\small
+\begin{aligned}
+\kappa_A &= 0.660\,678\,154\,099\,567\,999\,152\,95 \\
+\kappa_B &= 0.660\,678\,154\,099\,567\,999\,155\,72
+\end{aligned}
+$$
+
+Run B passed its time limit of 20 minutes in its second round. The computer was slower during that run, and I did not find the cause. Its value is the bound of the first round. In run A the two rounds differ by $5\cdot10^{-25}$, so nothing is lost. Both values are lower bounds, and they differ by $2.8\cdot10^{-21}$. This agrees with the laws of the section before: run A has an error of about $3\cdot10^{-21}$ from its degree, and run B an error of about $10^{-21}$ from its mesh.
+
+**Memory.** The tables are $KN^2$ numbers, in double-double and in double: 24 bytes each. For run A this is 2.0 GB, where the matrix $H$ would need 10 GB. For the largest Cholesky run it would be 3.4 GB in place of 28 GB. The peak of a run is higher, because the integrals in one variable are made with 1024-bit numbers on 32 threads. The memory is no limit now. The time is.
+
+**More digits.** What would more digits cost on this computer? These are estimates from scaling laws. I did not run them.
+
+- Each degree gains a factor of about 10: the top degree is the number of digits minus 6.
+- The share of the last layer is its size to the power $4/3$: each digit needs the mesh depth $T$ larger by $0.86$, and $1.44$ layers for each unit of $T$.
+- The edge functions $N$ then grow like the square of the digits, and the unknowns like the 4th power.
+- The step of the Gaussian sum decreases like 1/digits and its range grows like the digits, so the Gaussians grow like the square.
+- The table time grows like the 9th power of the digits, the time of the steps like the 10th, and the memory like the 6th.
+
+| Digits | Layers, degree | Unknowns | Gaussians | Tables | Steps | Memory | Total time |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 20 (run A) | 27, 14 | 36 046 | 1 161 | 6 min | 10 min | 2 GB | 16 min |
+| 25 | 32, 19 | 80 000 | 1 300 | 30 min | 30 min | 5 GB | 1 hour |
+| 30 | 38, 24 | 160 000 | 1 900 | 2 h | 3 h | 15 GB | 6 hours |
+| 40 | 50, 34 | 480 000 | 3 400 | 28 h | 2 days | 130 GB | 4 days |
+| 50 | 62, 44 | 1 100 000 | 5 300 | 8 days | 17 days | 480 GB | 4 weeks |
+
+The Cholesky method would need 50 GB, 200 GB, 1.9 TB and 10 TB for the matrix of these four rows.
+
+The rows for 25 and 30 digits are possible with the program as it is: one hour, and one night. From 31 digits on, double-double is not sufficient for the last residual. The rows for 40 and 50 digits do not fit into 64 GB. They would need the tables in double precision only, half of each symmetric table, and the high precision tables made again for the last residual: about 13 GB and 48 GB. The products of `cg.jl` reach about a quarter of the speed of this processor, so the time of the steps can decrease 3 to 4 times. The time of the tables cannot decrease so easily. Forty digits are a project of days, and fifty digits are not practical with this method on one desktop. And each of these values needs a second run with a different mesh before its digits can be trusted.
 
 ## The result
 
 $$
-\kappa = 0.660\,678\,154\,099\,568\,000 \pm 10^{-18}
+\kappa = 0.660\,678\,154\,099\,567\,999\,16 \pm 10^{-20}
 $$
 
-The best run gives $0.660\,678\,154\,099\,567\,999\,4$, a lower bound. The last two runs differ by $3.5\cdot10^{-19}$, and the step before that was $4\cdot10^{-17}$, so the next step is far below $10^{-19}$. The numerical parameters below add at most $3\cdot10^{-19}$ each. From these I assume an error of $10^{-18}$. It is an estimate, not a proved bound. The nearest double is `0.660678154099568`.
+The two conjugate gradient runs give the lower bounds $0.660\,678\,154\,099\,567\,999\,152\,95$ and $0.660\,678\,154\,099\,567\,999\,155\,72$. Each is a little low: the first by about $3\cdot10^{-21}$ from its degree, the second by about $10^{-21}$ from its mesh. These two numbers are estimates from the scaling laws, not measurements. From the bounds and the estimates I take the value above, and I assume an error of $10^{-20}$. It is an estimate, not a proved bound. The nearest double is `0.660678154099568`.
 
-Three numerical parameters could spoil the last digits, and I varied each of them:
+The Cholesky runs agree with this. Their first result was $0.660\,678\,154\,099\,568\,000 \pm 10^{-18}$, and the new value is inside that range. The best of them, less the $3\cdot10^{-19}$ of its short Gaussian sum, is about $5\cdot10^{-20}$ below the new value. That is the effect of its larger smallest patch, $e^{-32}$.
 
-- The smallest patch. The mesh stops at $e^{-32}$ from the edge. With two more layers the result moves by $2\cdot10^{-19}$.
-- The step of the Gaussian sum. The steps $0.12$ and $0.10$ agree to $5\cdot10^{-22}$. The nodes $t_k$ must be exact: when I rounded $\ln t_k$ to double precision, the result moved by $2\cdot10^{-17}$.
-- The range of the Gaussian sum, $e^{-42} \le t \le e^{44}$. A wider range moves the result by less than $3\cdot10^{-19}$.
+These numerical parameters could spoil the last digits:
+
+- The smallest patch. The mesh of the Cholesky runs stops at $e^{-32}$ from the edge, and with two more layers their result moves by $2\cdot10^{-19}$. The two new runs stop at $e^{-38}$ and $e^{-36}$. Their difference of $2.8\cdot10^{-21}$ contains this effect.
+- The step of the Gaussian sum. The steps $0.12$ and $0.10$ agree to $5\cdot10^{-22}$, and the new runs use $0.10$, with an error bound 4 000 times smaller than that of $0.12$. The nodes $t_k$ must be exact: when I rounded $\ln t_k$ to double precision, the result moved by $2\cdot10^{-17}$.
+- The range of the Gaussian sum. The range $e^{-42} \le t \le e^{44}$ of the Cholesky runs makes their values $3\cdot10^{-19}$ too high. The new range is $e^{-56} \le t \le e^{60}$. For 12 layers a start at $e^{-70}$ changes no digit of 24.
+- The solver. The two rounds of the conjugate gradient method differ by $5\cdot10^{-25}$.
 
 The value agrees with the best published one, $0.66067815409957$ of Helsing and Perfekt, in all its digits.
 
 ## The programs
 
-Both programs are plain Julia with threads, without packages:
+The three programs are plain Julia with threads, without packages:
 
 - [shells.jl](shells.jl) makes the two shell tables. The matrix is assembled over the orbits of the 48 symmetries. The values $Q_n$ are refined to 28 digits with double-double residuals, so that the extrapolation does not amplify rounding errors.
 - [patches.jl](patches.jl) makes the patch table. The integrals in one variable cancel strongly and use 1024-bit numbers. The matrix $H$ and its Cholesky factor are in double precision, and the solution is refined with double-double residuals.
+- [cg.jl](cg.jl) solves the same system with the conjugate gradient method. It includes `patches.jl` for the mesh and the tables, and it adds the products without the matrix, the steps in double precision and the residual in double-double.
 
 ```
 julia -t auto shells.jl 512
 julia -t auto patches.jl
+julia -t auto cg.jl
 ```
 
-On a 32-thread desktop (Core i9-13900K, 64 GB) the shell tables take about 2 minutes, most of it for $n = 512$, and the six default rows of the patch table take 8 minutes. The last row of the patch table is `julia -t auto patches.jl 32 14 0.75`. It needs 19 minutes and about 30 GB.
+On a 32-thread desktop (Core i9-13900K, 64 GB) the shell tables take about 2 minutes, most of it for $n = 512$, and the six default rows of the patch table take 8 minutes. The last row of the patch table is `julia -t auto patches.jl 32 14 0.75`. It needs 19 minutes and about 30 GB. The line with `cg.jl` is run A, 16 minutes with Julia 1.13. Run B is `julia -t auto cg.jl 26 15 0.75 18`.
 
 ## Notes
 
@@ -677,9 +924,10 @@ Is this new? The idea is not. It is the Rayleigh–Ritz method: restrict a varia
 - A finite family with the matrix of energies is Maxwell's method of subareas, in electrical engineering the method of moments (Harrington, 1968), and with the energy as the scalar product the Galerkin boundary element method. The formula $\mathbf 1^{\mathsf T} G^{-1} \mathbf 1$ with its error identity is in Betcke, Haberl and Praetorius, [*Adaptive boundary element methods for the computation of the electrostatic capacity on complex polyhedra*](https://arxiv.org/abs/1901.08393) (2019).
 - The energy of two overlapping shells is, up to a factor, the trace of the Rotne–Prager–Yamakawa tensor of hydrodynamics (Zuk, Wajnryb, Mizerski and Szymczak, 2014). There the same sum over the inverse matrix gives the hydrodynamic radius of a chain of beads.
 - $G = LL^{\mathsf T}$ and $\sum z_j^2$ are Cholesky, Gram–Schmidt and Parseval.
-- Patches graded in a fixed ratio toward the edges, with polynomials on them, are the *hp* boundary element method, which is known to converge exponentially for such densities.
+- Patches graded in a fixed ratio toward the edges, with polynomials on them, are the *hp* boundary element method, which is known to converge exponentially for such densities. The references are in the section *Why it is fast*.
+- The conjugate gradient method is from Hestenes and Stiefel (1952). A solver that uses only products with the matrix is the usual way to solve a large boundary element system.
 - The sum of Gaussians for $1/r$ is a standard tool as well: sinc quadrature (Stenger), and Beylkin and Monzón, *Approximation by exponential sums revisited* (2010).
 
-What can be particular to this post is the combination: the nested shell family in this order as an explicit series, and the patch system with all integrals reduced to $\operatorname{erf}$. I did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and I do not claim that anything here is new.
+What can be particular to this post is the combination: the nested shell family in this order as an explicit series, the patch system with all integrals reduced to $\operatorname{erf}$, and the conjugate gradient steps as a series of positive gains of the bound. I did not find the shell series in the literature, and a short search showed no published value of $\kappa$ with more than 14 digits. Neither search was complete, and I do not claim that anything here is new.
 
-The lower bounds are exact statements about exact arithmetic. That the bounds converge to $\kappa$, and how many digits are final, rests here on the numbers: on the agreement of runs with different meshes, degrees and parameters, and on the agreement with the 13 digits of Helsing and Perfekt, [*On the polarizability and capacitance of the cube*](https://arxiv.org/abs/1203.5997) (2013), $0.66067815409957$.
+The lower bounds are exact statements about exact arithmetic. That the bounds converge to $\kappa$, and how many digits are final, rests here on the numbers: on the agreement of runs with different meshes, degrees and parameters, on the agreement of the two solvers, and on the agreement with the 13 digits of Helsing and Perfekt, [*On the polarizability and capacitance of the cube*](https://arxiv.org/abs/1203.5997) (2013), $0.66067815409957$.

@@ -79,7 +79,80 @@ const tex = (content, displayMode, env) => {
   env.math = true;
   return katex.renderToString(content, { displayMode, throwOnError: true });
 };
-md.renderer.rules.math_inline = (tokens, i, _o, env) => tex(tokens[i].content, false, env);
+// An inline formula is an atomic box, and a browser can break the line between such a
+// box and the text that touches it: a comma or a bracket can then stand alone at a
+// line start or end. So each inline formula is marked here, and tie() joins it with
+// the text that touches it in one span that cannot break (.tie in style.css).
+// KaTeX divides a formula into "bases", and a line can break only between two bases.
+// Only the base next to the text goes into the span, so a long formula can still break
+// inside, at its operators.
+const MATH_OPEN = '';
+const MATH_CLOSE = '';
+md.renderer.rules.math_inline = (tokens, i, _o, env) =>
+  MATH_OPEN + tex(tokens[i].content, false, env) + MATH_CLOSE;
+
+const TOUCHING = `[^\\s<>${MATH_OPEN}${MATH_CLOSE}]+`;
+const FORMULA = `${MATH_OPEN}[^${MATH_CLOSE}]*${MATH_CLOSE}`;
+const RUN = new RegExp(`(?:${TOUCHING})?(?:${FORMULA}(?:${TOUCHING})?)+`, 'g');
+// Punctuation that touches a formula through a tag, as in *$x$*, cannot go into one span.
+const LOOSE = new RegExp(
+  `[(\\[{“‘](?:<[^>]+>)+${MATH_OPEN}|${MATH_CLOSE}(?:<[^>]+>)+[.,;:!?)\\]}”’…%]`,
+);
+const tie = (html, slug) => {
+  // The build stops, so this case cannot get into a page without a fix of the source.
+  const loose = LOOSE.exec(html);
+  if (loose) {
+    const near = html.slice(Math.max(0, loose.index - 300), loose.index + 300);
+    const source = near.replace(new RegExp(FORMULA, 'g'), '$…$').replace(/<[^>]+>/g, '');
+    throw new Error(`${slug}/index.md: punctuation touches a formula through markup: ${source}`);
+  }
+  return html.replace(RUN, (run) => {
+    // items: the text pieces and the formula pieces of the run, in order
+    const items = run
+      .split(new RegExp(`(${FORMULA})`))
+      .filter(Boolean)
+      .flatMap((s) => (s[0] === MATH_OPEN ? formulaPieces(s.slice(1, -1)) : [{ text: true, html: s }]));
+    let out = '';
+    for (let i = 0; i < items.length; i++) {
+      // A text piece is joined with the pieces on its two sides.
+      const joinedBefore = i > 0 && (items[i].text || items[i - 1].text);
+      const joinedAfter = i + 1 < items.length && (items[i].text || items[i + 1].text);
+      out += (joinedAfter && !joinedBefore ? '<span class="tie">' : '') + items[i].html;
+      out += joinedBefore && !joinedAfter ? '</span>' : '';
+    }
+    return out;
+  });
+};
+
+// One inline formula as one, two or three formulas: its first base, the bases between,
+// its last base. A line can break between these pieces, as it could between the bases.
+// The structure of the KaTeX output is checked, so a change of KaTeX stops the build.
+const KATEX_HTML = '<span class="katex-html" aria-hidden="true">';
+function formulaPieces(html) {
+  const at = html.indexOf(KATEX_HTML);
+  const unknown = () => new Error('The KaTeX output has an unknown structure, see formulaPieces()');
+  if (!html.startsWith('<span class="katex">') || at < 0 || !html.endsWith('</span></span>')) throw unknown();
+  const head = html.slice(0, at); // the opening tag and the MathML, kept with the first piece
+  const body = html.slice(at + KATEX_HTML.length, -'</span></span>'.length);
+  const bases = [];
+  let depth = 0;
+  let start = 0;
+  for (const tag of body.matchAll(/<span\b|<\/span>/g)) {
+    if (tag[0] !== '</span>') {
+      if (depth++ === 0 && (tag.index !== start || !body.startsWith('<span class="katex-base">', start))) throw unknown();
+    } else if (--depth === 0) {
+      bases.push(body.slice(start, tag.index + 7));
+      start = tag.index + 7;
+    }
+  }
+  if (depth !== 0 || start !== body.length || bases.length === 0) throw unknown();
+  const piece = (inner, first) => ({
+    html: `${first ? head : '<span class="katex">'}${KATEX_HTML}${inner}</span></span>`,
+  });
+  if (bases.length === 1) return [piece(bases[0], true)];
+  const between = bases.slice(1, -1).join('');
+  return [piece(bases[0], true), ...(between ? [piece(between)] : []), piece(bases.at(-1))];
+}
 md.renderer.rules.math_block = (tokens, i, _o, env) =>
   `<div class="math">${tex(tokens[i].content, true, env)}</div>\n`;
 
@@ -116,6 +189,13 @@ md.core.ruler.push('figures_and_ids', (state) => {
       tokens.splice(i + 2, 0, ...tokens.splice(i + 3, 3));
     }
   }
+});
+
+// The groups of a long number, as in 58 996, stay on one line.
+md.core.ruler.push('number_groups', (state) => {
+  for (const block of state.tokens)
+    for (const t of block.children ?? [])
+      if (t.type === 'text') t.content = t.content.replace(/(\d) (?=\d{3}(?!\d))/g, '$1 ');
 });
 
 // Images get their true pixel size, so the page does not move while it loads.
@@ -201,7 +281,7 @@ function readPost(slug) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(meta.date ?? ''))
     throw new Error(`${slug}/index.md: "date" must be YYYY-MM-DD`);
   const env = { dir };
-  const html = md.render(match[2], env);
+  const html = tie(md.render(match[2], env), slug);
   const firstParagraph = (/<p>([\s\S]*?)<\/p>/.exec(html)?.[1] ?? '').replace(/<[^>]+>/g, '');
   const description = firstParagraph.length > 200 ? `${firstParagraph.slice(0, 199)}…` : firstParagraph;
   return { slug, dir, html, math: Boolean(env.math), description, ...meta };
