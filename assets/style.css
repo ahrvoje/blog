@@ -170,6 +170,22 @@ h3 {
   margin-top: 0;
   margin-bottom: 2.8rem;
   color: var(--muted);
+  overflow-x: clip;
+}
+/* The parts of the line under the title (see build.mjs). A middle dot stands in the left
+   padding of each part. Each part is moved left by that padding, and the line cuts off
+   what is outside it. So the dot of the first part of a line is not visible: a line
+   cannot start with a dot, and it cannot end with one. */
+.meta > span {
+  display: inline-block;
+  position: relative;
+  left: -0.6em;
+  padding-left: 0.6em;
+}
+.meta > span::before {
+  content: "·";
+  position: absolute;
+  left: 0;
 }
 
 /* ------------------------------------------------------------ Text */

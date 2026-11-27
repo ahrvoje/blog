@@ -47,6 +47,8 @@ These rules are for each agent and each person who writes or changes a post. Rea
 The build makes these guarantees. Do not work around them by hand, and do not remove them.
 
 - **Punctuation stays with a formula.** The build joins each inline formula with the text that touches it, so a comma or a bracket cannot stand alone at a line start or end. If the build stops with "punctuation touches a formula through markup", move the punctuation into the markup.
+- **A formula breaks only after a relation or a plus or minus sign.** The signs are in `BREAK_AFTER` in `build.mjs`. A line cannot break after a multiplication sign (`5·10⁻²⁵`) or after a colon (`1:4`), and it cannot start with the dots of `x < …`. For a break at a different place, write `\allowbreak` there.
+- **The line under the title has no dot at a line start or end.** The style draws the dot between two parts of one line.
 - **Table cells do not wrap.** A wide table scrolls sideways. Keep each cell short: a number, an amount with its unit, a few words. Put a long explanation into the text before the table.
 - **Number groups stay together.** Write a long number with plain spaces between the groups (`58 996`). The build joins the groups.
 - Put the punctuation of a display formula inside the formula.

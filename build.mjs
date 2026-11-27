@@ -84,8 +84,8 @@ const tex = (content, displayMode, env) => {
 // line start or end. So each inline formula is marked here, and tie() joins it with
 // the text that touches it in one span that cannot break (.tie in style.css).
 // KaTeX divides a formula into "bases", and a line can break only between two bases.
-// Only the base next to the text goes into the span, so a long formula can still break
-// inside, at its operators.
+// Only the part next to the text goes into the span, so a long formula can still break
+// inside, after the signs of BREAK_AFTER.
 const MATH_OPEN = '';
 const MATH_CLOSE = '';
 md.renderer.rules.math_inline = (tokens, i, _o, env) =>
@@ -124,8 +124,23 @@ const tie = (html, slug) => {
   });
 };
 
-// One inline formula as one, two or three formulas: its first base, the bases between,
-// its last base. A line can break between these pieces, as it could between the bases.
+// KaTeX ends a base after each binary operator and each relation, so a line could also
+// break after the dot of 5·10⁻²⁵ and after the colon of 1:4, and a line could start
+// with the dots of x < …. A line can break only after one of these signs, or where the
+// formula has \allowbreak. After each other sign the two bases stay together (.tie).
+// A sign that is not in the list is safe: it gives no line break.
+const BREAK_AFTER = new Set(['=', '&lt;', '&gt;', '≤', '≥', '≈', '∼', '∝', '∈', '→', '+', '−', '±']);
+const SPACES = '(?:<span class="mspace" style="[^"]*"></span>)*</span>$';
+const SIGN_AT_END = new RegExp(`<span class="(?:mbin|mrel)">([^<]+)</span>${SPACES}`);
+const ALLOWBREAK_AT_END = /<span class="mspace allowbreak"><\/span><\/span>$/;
+const NOT_AT_LINE_START = /^[….,;:!?)\]}]/;
+const canBreak = (base, next) =>
+  (ALLOWBREAK_AT_END.test(base) || BREAK_AFTER.has(SIGN_AT_END.exec(base)?.[1])) &&
+  !NOT_AT_LINE_START.test(next.replace(/<[^>]+>/g, ''));
+
+// One inline formula as one, two or three formulas: its first part, the parts between,
+// its last part. A part is one base, or some bases with no permitted line break between
+// them. A line can break between the parts.
 // The structure of the KaTeX output is checked, so a change of KaTeX stops the build.
 const KATEX_HTML = '<span class="katex-html" aria-hidden="true">';
 function formulaPieces(html) {
@@ -149,9 +164,15 @@ function formulaPieces(html) {
   const piece = (inner, first) => ({
     html: `${first ? head : '<span class="katex">'}${KATEX_HTML}${inner}</span></span>`,
   });
-  if (bases.length === 1) return [piece(bases[0], true)];
-  const between = bases.slice(1, -1).join('');
-  return [piece(bases[0], true), ...(between ? [piece(between)] : []), piece(bases.at(-1))];
+  const groups = [[bases[0]]];
+  for (let i = 1; i < bases.length; i++) {
+    if (canBreak(bases[i - 1], bases[i])) groups.push([bases[i]]);
+    else groups.at(-1).push(bases[i]);
+  }
+  const parts = groups.map((g) => (g.length === 1 ? g[0] : `<span class="tie">${g.join('')}</span>`));
+  if (parts.length === 1) return [piece(parts[0], true)];
+  const between = parts.slice(1, -1).join('');
+  return [piece(parts[0], true), ...(between ? [piece(between)] : []), piece(parts.at(-1))];
 }
 md.renderer.rules.math_block = (tokens, i, _o, env) =>
   `<div class="math">${tex(tokens[i].content, true, env)}</div>\n`;
@@ -297,12 +318,15 @@ const posts = fs
 for (const post of posts) {
   const author = post.author ?? AUTHOR;
   const name = post.email ? `<a href="mailto:${esc(post.email)}">${esc(author)}</a>` : esc(author);
-  // Optional front matter "doi": shown after the author, as a link to doi.org.
-  const byline = post.doi ? `${name} · <a href="https://doi.org/${esc(post.doi)}">doi:${esc(post.doi)}</a>` : name;
+  // The parts of the line under the title: the date, the author and, with the optional
+  // front matter "doi", a link to doi.org. The style puts a middle dot between two parts
+  // of one line (.meta in style.css), so a line cannot start or end with a dot.
+  const parts = [`<time datetime="${post.date}">${longDate(post.date)}</time>`, name];
+  if (post.doi) parts.push(`<a href="https://doi.org/${esc(post.doi)}">doi:${esc(post.doi)}</a>`);
   const body = `<header class="site"><a href="../"><img src="../favicon-32x32.png" alt="" width="16" height="16">${esc(SITE)}</a></header>
 <main class="post">
 <h1>${esc(post.title)}</h1>
-<p class="meta"><time datetime="${post.date}">${longDate(post.date)}</time> · ${byline}</p>
+<p class="meta">${parts.map((p) => `<span>${p}</span>`).join(' ')}</p>
 ${post.html}</main>`;
   fs.writeFileSync(
     path.join(post.dir, 'index.html'),

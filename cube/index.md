@@ -2,7 +2,7 @@
 title: The capacitance of a cube
 date: 2026-11-22
 author: Hrvoje Abraham, Fable 5.2
-doi: 10.5281/zenodo.24485540
+doi: 10.5281/zenodo.24582301
 ---
 
 A metal sphere of radius $r$ has the capacitance $4\pi\varepsilon_0 r$. For a metal cube no formula is known, only numbers. This post has two series for that number, and two solvers for the second series.
@@ -13,7 +13,7 @@ The second series is fast. It has the same structure and is made of charged patc
 
 The first solver stores the matrix of the patch system and factors it, the Cholesky method. It gives 18 digits.
 
-The second solver does not store the matrix, the conjugate gradient method. Each of its steps increases the lower bound, and it gives two more digits:
+The second solver does not store the matrix, the conjugate gradient method. Each of its steps increases the lower bound. The post gives the two conditions for this, symmetry and positivity, and tells how the program keeps them in floating point. This solver gives two more digits:
 
 $$
 \small
@@ -742,7 +742,28 @@ $$
 
 One step needs one product $Hd_k$ and some sums.
 
-**Strict convergence.** For a symmetric positive definite matrix the method has three properties, and the capacitance gives each of them a meaning.
+**The two conditions.** The method converges strictly on two conditions. *Strictly* means that the bound of each step is above the bound of the step before it, and that no bound is above $\kappa_M$, the value of the full system. The conditions are:
+
+1. *Symmetry.* $D^{\mathsf T} H C = C^{\mathsf T} H D$ for each two trial charges $C$ and $D$.
+2. *Positivity.* $C^{\mathsf T} H C > 0$ for each trial charge $C$ that is not zero.
+
+A matrix with the two properties is named symmetric positive definite. Here the two are statements about energy. The number $6\,D^{\mathsf T} H C$ is the mutual energy of the charges $C$ and $D$, and a mutual energy does not depend on the order of the two charges. The number $6\,C^{\mathsf T} H C$ is the energy of the charge $C$, and the energy of a charge is positive. But the system of the recipe does not have the two properties by itself. Each needs one more fact.
+
+*Symmetry needs a symmetric $C$.* The formula for $H_{ab,cd}$ is not symmetric: its last term, $s_a A_{bc} s_d$, changes when $(a,b)$ and $(c,d)$ change places. The product $D^{\mathsf T}HC$ is the energy of $D$ on one face with $C$ on all six faces. It is one sixth of the mutual energy of the two full charges only if the charge has all the symmetries of the cube, and that needs $C_{ab} = C_{ba}$. So condition 1 is true for symmetric $C$ and $D$ only, and all charges, residuals and directions of the method must be symmetric. For 12 layers and degree 4, the two sides of condition 1 agree to 15 digits for two random symmetric matrices, and they differ by 16% for two random matrices that are not symmetric.
+
+*Positivity needs a positive sum of Gaussians.* The program does not have $1/r$. It has a finite sum of Gaussians, and the energy in condition 2 is the energy with that sum. Each Gaussian gives a positive energy by itself. For a charge density $\rho$ with the Fourier transform $\hat\rho$,
+
+$$
+\small
+\begin{gathered}
+\iint \rho(x)\,\rho(y)\, e^{-t^2 |x-y|^2}\, dx\, dy \\[6pt]
+= \frac{1}{8\,\pi^{3/2}\, t^3} \int |\hat\rho(k)|^2\, e^{-|k|^2/4t^2}\, dk \;>\; 0 .
+\end{gathered}
+$$
+
+The weights $w_k$ are positive, so a sum of any number of Gaussians gives a positive energy. The step and the range of the sum change the value of $\kappa_M$, but they cannot break condition 2. The trial functions are independent, so a $C$ that is not zero is a charge that is not zero.
+
+**Strict convergence.** With the two conditions the method has three properties, and the capacitance gives each of them a meaning.
 
 *Each step increases the bound.* Each $C_k$ is a trial charge, so it has its own lower bound $\kappa_k = 6\,(2\,m^{\mathsf T}C_k - C_k^{\mathsf T}HC_k)$. One step changes it by
 
@@ -750,7 +771,7 @@ $$
 \kappa_{k+1} - \kappa_k = 6\,\alpha_k\, r_k^{\mathsf T} z_k > 0 .
 $$
 
-The number $d^{\mathsf T}Hd$ is an energy and $r^{\mathsf T}z$ is a sum of squares, so the gain is positive while the residual is not zero. The bounds increase at each step. They cannot oscillate, and they cannot pass $\kappa_M$, the value of the full system.
+By condition 1 the residual is in proportion to the gradient of the bound, so the step goes in a direction in which the bound rises. Condition 2 makes $d^{\mathsf T}Hd$ positive: it is the energy of the direction. The number $r^{\mathsf T}z$ is a sum of squares, each divided by a diagonal entry of $H$, and such an entry is an energy too. So the step size $\alpha_k$ and the gain are positive while the residual is not zero. The bounds increase at each step. They cannot oscillate, and they cannot pass $\kappa_M$.
 
 *Each step is the best one.* $C_k$ has the smallest energy of the error among all charges that $k$ products can build from the right side. In exact arithmetic the method ends with the exact solution after $M$ steps at most.
 
@@ -827,15 +848,27 @@ It is about 10 to 15 times $N$, so the steps grow like $\sqrt N$, which is $M^{1
 <figcaption>The error of the lower bound after each step, for the run with 27 layers and top degree 14 (36 046 unknowns). The error is the sum of the gains of all later steps. It falls by a factor of 0.89 for each step, 20 steps for one digit, and it is below 10⁻²⁰ after 315 steps. The bound from the condition number 2 680 gives the factor 0.93.</figcaption>
 </figure>
 
-**In floating point** the three properties need care. I made each of these errors, and found each by a comparison with the Cholesky method on a small size.
+**Symmetry in floating point.** Condition 1 needs symmetric matrices, and rounding does not keep a matrix symmetric. The program keeps all matrices of the method symmetric in all bits, in three places.
 
-- *The steps lose their orthogonality.* In exact arithmetic $C_k^{\mathsf T} r_k = 0$, and the bound is then only $6\,m^{\mathsf T}C_k$. In double precision this product grew by a factor of about 6 for each step, and at step 30 the short formula was $6\cdot10^{-5}$ above the true value. The formula with the gains stays correct, as Strakoš and Tichý showed in [*On error estimation in the conjugate gradient method and why it works in finite precision computations*](https://etna.math.kent.edu/vol.13.2002/pp56-80.dir/pp56-80.html) (2002). The gains are small numbers with full relative accuracy, so their sum gives the error of a step also where it is far below the rounding of $\kappa$. The figure uses this.
-- *Double precision ends at 16 digits.* But the error of $\kappa$ is the square of the error of $C$. The first round of steps, in double precision, brings the residual to $10^{-13}$, and that gives $\kappa$ to $5\cdot10^{-25}$. A second round starts from the residual of the first, computed in double-double, and adds its result. Two products in double-double are all the high precision that the solver needs.
-- *The products do not keep the symmetry.* $ACA$ is not exactly symmetric in floating point. The residual in double-double reads one triangle of $C$, and without an exact symmetry the result was wrong in the 15th digit.
+- *The product.* For symmetric $A$ and $C$ the computed $ACA$ is not exactly symmetric. With the parameters of run A below, 33 339 of the 35 778 pairs of entries $(a,b)$ and $(b,a)$ of the first product differ, by up to $8\cdot10^{-8}$ of their size. After each product the program replaces the entries $(a,b)$ and $(b,a)$ by their mean. All other operations of a step work on one entry at a time, so the charge, the residual and the direction then stay symmetric in all bits.
+- *The scaling.* The method divides the entry $(a,b)$ of the residual by $P_{ab}$, the diagonal entry of $H$ for the charge $\varphi_a\varphi_b + \varphi_b\varphi_a$. The program calculates $P_{ab}$ and $P_{ba}$ with the same operations, so they are equal in all bits.
+- *The residual in double-double.* The program calculates one triangle of the product and copies it to the other.
 
-With these corrections the two methods agree: to 24 digits for 12 layers and degree 4, with the same Gaussian sum, and in all 18 digits of the table above for 20 layers and degree 8.
+**Positivity in floating point.** Condition 2 is true for the exact tables. The program must keep it for the rounded ones.
 
-**A wider Gaussian sum.** More digits need more of the Gaussian sum, and one test changed an earlier statement. The sum of the Cholesky runs starts at $t = e^{-42}$. The part below that is about $e^{-42}$ of each energy, and it is positive. Without it the energies are too small and $\kappa_N$ is too large. With the start at $e^{-56}$ the value for 12 layers decreases by $2.7\cdot10^{-19}$, and a start at $e^{-70}$ changes nothing more. The upper end has the same effect, $2.8\cdot10^{-20}$ for an end at $e^{52}$ in place of $e^{44}$. So the values of the Cholesky table are about $3\cdot10^{-19}$ too high. This is inside the stated error of $10^{-18}$, but beyond the 18th digit those values are not lower bounds. The new program sums from $e^{-56}$ to $e^{60}$ with the step $0.1$: 1 161 Gaussians.
+- *The tables.* The integrals in one variable are sums of large terms that cancel. The program calculates them with 1024-bit numbers. With 2048-bit numbers the bound is the same in all 26 digits that the program prints. I tested this for 12 layers and degree 4, and for 16 layers with the top degree 14, the slope 1 and the smallest patch $e^{-38}$ of run A.
+- *The scaling.* The diagonal entries of $H$ are the energies of the trial functions. A small patch has a large energy, and in run A the largest entry is $1.4\cdot10^{20}$ times the smallest. Double precision has 16 digits. The division by the diagonal removes this range: the condition number of the scaled matrix is 2 680 in run A. For 12 layers and degree 4, where I made the full matrix, the eigenvalues of the scaled matrix are between $0.018$ and $11.5$, far above the rounding errors.
+- *The test.* The gain of a step has the sign of the energy $d^{\mathsf T}Hd$. All 674 gains of run B are positive, and all 699 gains of a second run with the parameters of run A. For 12 layers and degree 4, I also calculated the bound of each of the 191 steps of the first round directly from its charge, with the product in double-double. Each bound is above the bound before it. The rise of the first step agrees with its gain to 16 digits. The last rises, near $10^{-26}$, agree with their gains to about 3 digits: they are differences of two bounds that are equal in 25 digits.
+
+**More digits than double precision.** The steps run in double precision. Three more facts give $\kappa$ beyond its 16 digits.
+
+- *The last bound does not depend on the steps.* The program calculates $6\,(2\,m^{\mathsf T}C - C^{\mathsf T}HC)$ for the last charge with the product in double-double. This is a lower bound for each symmetric $C$. An error of the steps can decrease it, but cannot put it above $\kappa_M$.
+- *The error of $\kappa$ is the square of the error of $C$.* The first round of steps, in double precision, brings the residual to $10^{-13}$, and that gives $\kappa$ to $5\cdot10^{-25}$ in run A below. A second round starts from the residual of the first, computed in double-double, and adds its result. Two products in double-double are all the high precision that the solver needs.
+- *The bound of a step is the last bound less the gains of the later steps.* In exact arithmetic it is also $6\,m^{\mathsf T}C_k$, because $C_k^{\mathsf T} r_k = 0$. Floating point does not keep this orthogonality, so the program does not use the short formula. The sum of the gains stays correct, as Strakoš and Tichý showed in [*On error estimation in the conjugate gradient method and why it works in finite precision computations*](https://etna.math.kent.edu/vol.13.2002/pp56-80.dir/pp56-80.html) (2002). The gains are small numbers with full relative accuracy, so their sum gives the error of a step also where it is far below the rounding of $\kappa$. The figure uses this.
+
+The two methods agree: to 24 digits for 12 layers and degree 4, with the same Gaussian sum, and in all 18 digits of the table above for 20 layers and degree 8.
+
+**A wider Gaussian sum.** More digits need more of the Gaussian sum. The sum of the Cholesky runs starts at $t = e^{-42}$. The part below that is about $e^{-42}$ of each energy, and it is positive. Without it the energies are too small and $\kappa_N$ is too large. With the start at $e^{-56}$ the value for 12 layers decreases by $2.7\cdot10^{-19}$, and a start at $e^{-70}$ changes nothing more. The upper end has the same effect, $2.8\cdot10^{-20}$ for an end at $e^{52}$ in place of $e^{44}$. So the values of the Cholesky table are about $3\cdot10^{-19}$ too high. This is inside the stated error of $10^{-18}$, but beyond the 18th digit those values are not lower bounds. The new program sums from $e^{-56}$ to $e^{60}$ with the step $0.1$: 1 161 Gaussians.
 
 **The runs.** The program [cg.jl](cg.jl) does all this. It takes the tables from `patches.jl`, so the two programs cannot differ in the system. Two runs with different meshes and degrees:
 
@@ -844,12 +877,12 @@ With these corrections the two methods agree: to 24 digits for 12 layers and deg
 | Layers, top degree | 27, 14 | 26, 15 |
 | Smallest patch | $e^{-38}$ | $e^{-36}$ |
 | Edge functions, unknowns | 268, 36 046 | 259, 33 670 |
-| Tables | 374 s | 606 s |
-| Steps, first and second round | 421, 277 | 415, stopped |
-| One product | 0.85 s | 1.37 s |
-| One product in double-double | 14 s | 13 s |
-| Total | 16 min | 20 min, the time limit |
-| Memory in the table phase | 10 GB | |
+| Tables | 374 s | 395 s |
+| Steps, first and second round | 421, 277 | 415, 259 |
+| One product | 0.85 s | 0.73 s |
+| One product in double-double | 14 s | 14 to 15 s |
+| Total | 16 min | 15 min |
+| Peak memory | 24 GB | 22 GB |
 
 $$
 \small
@@ -859,9 +892,11 @@ $$
 \end{aligned}
 $$
 
-Run B passed its time limit of 20 minutes in its second round. The computer was slower during that run, and I did not find the cause. Its value is the bound of the first round. In run A the two rounds differ by $5\cdot10^{-25}$, so nothing is lost. Both values are lower bounds, and they differ by $2.8\cdot10^{-21}$. This agrees with the laws of the section before: run A has an error of about $3\cdot10^{-21}$ from its degree, and run B an error of about $10^{-21}$ from its mesh.
+Each value is the bound of the last charge after the second round. The two rounds differ by $5\cdot10^{-25}$ in run A and by $3\cdot10^{-25}$ in run B. Both values are lower bounds, and they differ by $2.8\cdot10^{-21}$. This agrees with the laws of the section before: run A has an error of about $3\cdot10^{-21}$ from its degree, and run B an error of about $10^{-21}$ from its mesh.
 
-**Memory.** The tables are $KN^2$ numbers, in double-double and in double: 24 bytes each. For run A this is 2.0 GB, where the matrix $H$ would need 10 GB. For the largest Cholesky run it would be 3.4 GB in place of 28 GB. The peak of a run is higher, because the integrals in one variable are made with 1024-bit numbers on 32 threads. The memory is no limit now. The time is.
+A second run with the parameters of run A gave the same bound in all 23 digits. It needed 421 and 278 steps, and the peak memory in the table is from it. The number of steps can change by a few from run to run, because the tasks add the Gaussians in a different order and the rounding differs.
+
+**Memory.** The tables are $KN^2$ numbers, in double-double and in double: 24 bytes each. For run A this is 2.0 GB, where the matrix $H$ would need 10 GB. For the largest Cholesky run it would be 3.3 GB in place of 28 GB. The peak of a run is higher, 22 to 24 GB, because the integrals in one variable are made with 1024-bit numbers on 32 threads. The memory is no limit now. The time is.
 
 **More digits.** What would more digits cost on this computer? These are estimates from scaling laws. I did not run them.
 
@@ -896,9 +931,9 @@ The Cholesky runs agree with this. Their first result was $0.660\,678\,154\,099\
 These numerical parameters could spoil the last digits:
 
 - The smallest patch. The mesh of the Cholesky runs stops at $e^{-32}$ from the edge, and with two more layers their result moves by $2\cdot10^{-19}$. The two new runs stop at $e^{-38}$ and $e^{-36}$. Their difference of $2.8\cdot10^{-21}$ contains this effect.
-- The step of the Gaussian sum. The steps $0.12$ and $0.10$ agree to $5\cdot10^{-22}$, and the new runs use $0.10$, with an error bound 4 000 times smaller than that of $0.12$. The nodes $t_k$ must be exact: when I rounded $\ln t_k$ to double precision, the result moved by $2\cdot10^{-17}$.
+- The step of the Gaussian sum. The steps $0.12$ and $0.10$ agree to $5\cdot10^{-22}$, and the new runs use $0.10$, with an error bound 4 000 times smaller than that of $0.12$. The nodes $t_k$ are exact: the programs keep $\ln t_k$ as a rational number and calculate $t_k$ with 1024-bit numbers.
 - The range of the Gaussian sum. The range $e^{-42} \le t \le e^{44}$ of the Cholesky runs makes their values $3\cdot10^{-19}$ too high. The new range is $e^{-56} \le t \le e^{60}$. For 12 layers a start at $e^{-70}$ changes no digit of 24.
-- The solver. The two rounds of the conjugate gradient method differ by $5\cdot10^{-25}$.
+- The solver. The two rounds of the conjugate gradient method differ by $5\cdot10^{-25}$ in run A and by $3\cdot10^{-25}$ in run B.
 
 The value agrees with the best published one, $0.66067815409957$ of Helsing and Perfekt, in all its digits.
 
@@ -916,7 +951,7 @@ julia -t auto patches.jl
 julia -t auto cg.jl
 ```
 
-On a 32-thread desktop (Core i9-13900K, 64 GB) the shell tables take about 2 minutes, most of it for $n = 512$, and the six default rows of the patch table take 8 minutes. The last row of the patch table is `julia -t auto patches.jl 32 14 0.75`. It needs 19 minutes and about 30 GB. The line with `cg.jl` is run A, 16 minutes with Julia 1.13. Run B is `julia -t auto cg.jl 26 15 0.75 18`.
+On a 32-thread desktop (Core i9-13900K, 64 GB) the shell tables take about 2 minutes, most of it for $n = 512$, and the six default rows of the patch table take 8 minutes. The last row of the patch table is `julia -t auto patches.jl 32 14 0.75`. It needs 19 minutes and about 30 GB. The line with `cg.jl` is run A, 16 minutes with Julia 1.13. Run B is `julia -t auto cg.jl 26 15 0.75 18`, 15 minutes.
 
 ## Notes
 
